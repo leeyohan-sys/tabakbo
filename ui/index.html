@@ -78,7 +78,8 @@
   <label>BPM <input type="number" id="bpmInput" value="90" min="20" max="300" /></label>
   <button id="playBtn">재생</button>
   <button id="penBtn">펜</button>
-  <button id="clearDrawingBtn">그림 지우기</button>
+  <button id="undoDrawingBtn">되돌리기</button>
+  <button id="clearDrawingBtn">그림 전체 지우기</button>
   <span id="status"></span>
 </header>
 <div id="fretBar">
@@ -332,6 +333,11 @@
   }
 
   document.getElementById("penBtn").addEventListener("click", () => setPenMode(!penMode));
+
+  document.getElementById("undoDrawingBtn").addEventListener("click", () => {
+    strokes.pop();
+    redrawPenStrokes();
+  });
 
   document.getElementById("clearDrawingBtn").addEventListener("click", () => {
     strokes = [];
