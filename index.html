@@ -92,6 +92,7 @@
     input[type="number"] { width: 60px; padding: 9px 4px; min-height: 40px; }
     #fretInput { min-height: 44px; width: 88px; }
     .icon { width: 18px; height: 18px; }
+    .cell .fret-label { font-size: 17px; }
   }
 
   #tabWrap { overflow-x: auto; overflow-y: visible; background: white; border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 18px 6px; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
@@ -119,7 +120,7 @@
   }
   .cell .fret-label {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    background: white; padding: 0 3px; font-weight: bold; z-index: 2;
+    background: white; padding: 0 3px; font-weight: bold; font-size: 15px; z-index: 2;
   }
   .cell:hover { background-image: linear-gradient(#4a7dfc, #4a7dfc); }
   .cell.selected { outline: 2px solid #4a7dfc; outline-offset: -2px; z-index: 3; }
