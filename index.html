@@ -232,7 +232,37 @@
       }
       wrap.appendChild(table);
     }
+
+    applyResponsiveCellWidth();
   }
+
+  // ---- 셀 너비를 창 폭에 맞춰 축소 (데스크톱에서 가로 스크롤 방지, 터치 화면은 원래 크기 유지) ----
+  const CLEF_COLUMN_WIDTH = 64; // .tab-clef 칸의 대략적인 렌더링 너비(여유 포함, 넉넉히 잡아 스크롤 방지)
+
+  function applyResponsiveCellWidth() {
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+
+    const wrap = document.getElementById("tabWrap");
+    if (!wrap.querySelector(".tab-clef")) return;
+
+    const wrapStyle = getComputedStyle(wrap);
+    const wrapPadding = parseFloat(wrapStyle.paddingLeft) + parseFloat(wrapStyle.paddingRight);
+    const available = wrap.clientWidth - wrapPadding - CLEF_COLUMN_WIDTH;
+
+    let w = Math.floor(available / colsPerLine());
+    w = Math.max(10, Math.min(30, w));
+
+    document.querySelectorAll("#tabWrap .cell").forEach((td) => {
+      td.style.width = w + "px";
+      td.style.minWidth = w + "px";
+    });
+  }
+
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(applyResponsiveCellWidth, 150);
+  });
 
   // ---- 마디 추가/삭제 (한 줄 = MEASURES_PER_LINE 마디 단위) ----
   document.getElementById("addMeasureBtn").addEventListener("click", () => {
