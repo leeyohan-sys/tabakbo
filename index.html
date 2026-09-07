@@ -33,31 +33,35 @@
     button { padding: 9px 14px; font-size: 14px; }
   }
 
-  #tabWrap { overflow-x: auto; background: white; border-radius: 8px; padding: 16px 16px 16px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-  table.tab-line { border-collapse: collapse; font-family: Consolas, monospace; margin-bottom: 26px; }
-  table.tab-line th, table.tab-line td { text-align: center; padding: 0; }
+  #tabWrap { overflow-x: auto; overflow-y: visible; background: white; border-radius: 8px; padding: 16px 16px 16px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+  #tabInner { position: relative; display: inline-block; }
+  #penCanvas { position: absolute; top: 0; left: 0; pointer-events: none; touch-action: none; }
+  #penBtn.active { background: #4a7dfc; color: white; }
+  .tab-line-row { display: flex; align-items: stretch; margin-bottom: 26px; }
+  table.tab-line { border-collapse: collapse; font-family: Consolas, monospace; }
+  table.tab-line td { text-align: center; padding: 0; }
 
   .tab-clef {
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px;
     font-family: Georgia, "Times New Roman", serif; font-weight: bold; font-size: 19px;
     color: #222; border-left: 3px solid #333; border-right: 3px solid #333;
-    padding: 0 10px; vertical-align: middle;
+    padding: 0 10px; flex: none;
   }
-  .tab-clef .letters { display: flex; flex-direction: column; justify-content: center; gap: 3px; height: 100%; }
 
   .cell {
     width: 30px; height: 26px; min-width: 30px;
     font-size: 12px; color: #111; cursor: pointer; user-select: none;
     position: relative;
-  }
-  .cell .string-line {
-    position: absolute; left: 0; right: 0; top: 50%; height: 2px;
-    background: #777; transform: translateY(-1px);
+    background-image: linear-gradient(#777, #777);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 2px;
   }
   .cell .fret-label {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: white; padding: 0 3px; font-weight: bold; z-index: 2;
   }
-  .cell:hover .string-line { background: #4a7dfc; }
+  .cell:hover { background-image: linear-gradient(#4a7dfc, #4a7dfc); }
   .cell.selected { outline: 2px solid #4a7dfc; outline-offset: -2px; z-index: 3; }
   footer { margin-top: 14px; font-size: 12px; color: #999; }
   footer a { color: #777; }
@@ -76,6 +80,8 @@
   <button id="removeMeasureBtn">마디 삭제</button>
   <label>BPM <input type="number" id="bpmInput" value="90" min="20" max="300" /></label>
   <button id="playBtn">재생</button>
+  <button id="penBtn">펜</button>
+  <button id="clearDrawingBtn">그림 지우기</button>
   <span id="status"></span>
   <input type="file" id="fileInput" accept=".json,application/json" style="display:none" />
 </header>
@@ -89,7 +95,12 @@
   칸을 탭(클릭)해 선택한 뒤 위 입력창에 프렛 번호(0~24)를 입력하세요. 데스크톱에서는 방향키로 칸 이동도 가능합니다.
 </div>
 
-<div id="tabWrap"></div>
+<div id="tabWrap">
+  <div id="tabInner">
+    <div id="gridContent"></div>
+    <canvas id="penCanvas"></canvas>
+  </div>
+</div>
 
 <footer>모든 데이터는 브라우저 안에서만 처리되며 서버로 전송되지 않습니다. 저장/열기는 파일 다운로드·업로드로 동작합니다.</footer>
 
@@ -122,6 +133,7 @@
   function resetTab() {
     tab = { bpm: 90, measures: 4, grid: makeEmptyGrid(4) };
     selected = { string: 0, col: 0 };
+    strokes = [];
     document.getElementById("bpmInput").value = tab.bpm;
     renderGrid();
     syncFretInput();
@@ -175,7 +187,7 @@
 
   // ---- 렌더링 (한 줄 = MEASURES_PER_LINE 마디씩 끊어서 여러 줄로 표시) ----
   function renderGrid() {
-    const wrap = document.getElementById("tabWrap");
+    const wrap = document.getElementById("gridContent");
     wrap.innerHTML = "";
 
     const cpl = colsPerLine();
@@ -186,28 +198,24 @@
       const startCol = lineIdx * cpl;
       const endCol = Math.min(startCol + cpl, cols);
 
+      const lineRow = document.createElement("div");
+      lineRow.className = "tab-line-row";
+
+      const clef = document.createElement("div");
+      clef.className = "tab-clef";
+      clef.innerHTML = "<div>T</div><div>A</div><div>B</div>";
+      lineRow.appendChild(clef);
+
       const table = document.createElement("table");
       table.className = "tab-line";
 
       for (let s = 0; s < 6; s++) {
         const tr = document.createElement("tr");
 
-        if (s === 0) {
-          const th = document.createElement("th");
-          th.className = "tab-clef";
-          th.rowSpan = 6;
-          th.innerHTML = '<div class="letters"><div>T</div><div>A</div><div>B</div></div>';
-          tr.appendChild(th);
-        }
-
         for (let c = startCol; c < endCol; c++) {
           const td = document.createElement("td");
           td.className = "cell";
           if (selected.string === s && selected.col === c) td.classList.add("selected");
-
-          const lineEl = document.createElement("div");
-          lineEl.className = "string-line";
-          td.appendChild(lineEl);
 
           const val = tab.grid[s][c];
           if (val !== null && val !== undefined) {
@@ -230,10 +238,12 @@
         }
         table.appendChild(tr);
       }
-      wrap.appendChild(table);
+      lineRow.appendChild(table);
+      wrap.appendChild(lineRow);
     }
 
     applyResponsiveCellWidth();
+    resizePenCanvas();
   }
 
   // ---- 셀 너비를 창 폭에 맞춰 축소 (데스크톱에서 가로 스크롤 방지, 터치 화면은 원래 크기 유지) ----
@@ -261,8 +271,94 @@
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(applyResponsiveCellWidth, 150);
+    resizeTimer = setTimeout(() => {
+      applyResponsiveCellWidth();
+      resizePenCanvas();
+    }, 150);
   });
+
+  // ---- 펜 기능 (그리드 위에 겹쳐진 캔버스에 자유롭게 그리기) ----
+  // 점은 {xFrac, y}로 저장: x는 캔버스 폭이 바뀌어도(반응형 셀 크기) 비율을 유지하고,
+  // y는 절대값으로 유지해 마디 추가로 캔버스가 세로로 늘어나도 기존 그림 위치가 흔들리지 않는다.
+  let penMode = false;
+  let strokes = [];
+  let currentStroke = null;
+  let isDrawing = false;
+
+  function getPenCanvas() {
+    return document.getElementById("penCanvas");
+  }
+
+  function redrawPenStrokes() {
+    const canvas = getPenCanvas();
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#e53935";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    strokes.forEach((stroke) => {
+      if (stroke.length < 2) return;
+      ctx.beginPath();
+      const p0 = stroke[0];
+      ctx.moveTo(p0.xFrac * canvas.width, p0.y);
+      for (let i = 1; i < stroke.length; i++) {
+        const p = stroke[i];
+        ctx.lineTo(p.xFrac * canvas.width, p.y);
+      }
+      ctx.stroke();
+    });
+  }
+
+  function resizePenCanvas() {
+    const gridContent = document.getElementById("gridContent");
+    const canvas = getPenCanvas();
+    const w = gridContent.offsetWidth;
+    const h = gridContent.offsetHeight;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      redrawPenStrokes();
+    }
+  }
+
+  function pointFromEvent(e) {
+    const canvas = getPenCanvas();
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    return { xFrac: x / canvas.width, y };
+  }
+
+  function setPenMode(on) {
+    penMode = on;
+    const canvas = getPenCanvas();
+    canvas.style.pointerEvents = penMode ? "auto" : "none";
+    document.getElementById("penBtn").classList.toggle("active", penMode);
+  }
+
+  document.getElementById("penBtn").addEventListener("click", () => setPenMode(!penMode));
+
+  document.getElementById("clearDrawingBtn").addEventListener("click", () => {
+    strokes = [];
+    redrawPenStrokes();
+  });
+
+  const penCanvasEl = getPenCanvas();
+  penCanvasEl.addEventListener("pointerdown", (e) => {
+    if (!penMode) return;
+    isDrawing = true;
+    currentStroke = [pointFromEvent(e)];
+    strokes.push(currentStroke);
+    penCanvasEl.setPointerCapture(e.pointerId);
+  });
+  penCanvasEl.addEventListener("pointermove", (e) => {
+    if (!penMode || !isDrawing) return;
+    currentStroke.push(pointFromEvent(e));
+    redrawPenStrokes();
+  });
+  penCanvasEl.addEventListener("pointerup", () => { isDrawing = false; currentStroke = null; });
+  penCanvasEl.addEventListener("pointercancel", () => { isDrawing = false; currentStroke = null; });
 
   // ---- 마디 추가/삭제 (한 줄 = MEASURES_PER_LINE 마디 단위) ----
   document.getElementById("addMeasureBtn").addEventListener("click", () => {
@@ -321,6 +417,7 @@
 
   document.getElementById("saveBtn").addEventListener("click", () => {
     tab.bpm = parseInt(document.getElementById("bpmInput").value, 10) || 90;
+    tab.drawing = strokes;
     downloadBlob(JSON.stringify(tab), "tab.json", "application/json");
     setStatus("tab.json 다운로드됨", "ok");
   });
@@ -337,6 +434,7 @@
       try {
         tab = JSON.parse(reader.result);
         selected = { string: 0, col: 0 };
+        strokes = tab.drawing || [];
         document.getElementById("bpmInput").value = tab.bpm || 90;
         renderGrid();
         syncFretInput();
