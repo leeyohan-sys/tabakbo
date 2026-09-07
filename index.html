@@ -34,8 +34,8 @@
   }
 
   #tabWrap { overflow-x: auto; background: white; border-radius: 8px; padding: 16px 16px 16px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-  table#tabGrid { border-collapse: collapse; font-family: Consolas, monospace; }
-  table#tabGrid th, table#tabGrid td { text-align: center; padding: 0; }
+  table.tab-line { border-collapse: collapse; font-family: Consolas, monospace; margin-bottom: 26px; }
+  table.tab-line th, table.tab-line td { text-align: center; padding: 0; }
 
   .tab-clef {
     font-family: Georgia, "Times New Roman", serif; font-weight: bold; font-size: 19px;
@@ -59,7 +59,6 @@
   }
   .cell:hover .string-line { background: #4a7dfc; }
   .cell.selected { outline: 2px solid #4a7dfc; outline-offset: -2px; z-index: 3; }
-  .cell.measure-end { border-right: 2px solid #333; }
   footer { margin-top: 14px; font-size: 12px; color: #999; }
   footer a { color: #777; }
 </style>
@@ -90,9 +89,7 @@
   칸을 탭(클릭)해 선택한 뒤 위 입력창에 프렛 번호(0~24)를 입력하세요. 데스크톱에서는 방향키로 칸 이동도 가능합니다.
 </div>
 
-<div id="tabWrap">
-  <table id="tabGrid"></table>
-</div>
+<div id="tabWrap"></div>
 
 <footer>모든 데이터는 브라우저 안에서만 처리되며 서버로 전송되지 않습니다. 저장/열기는 파일 다운로드·업로드로 동작합니다.</footer>
 
@@ -101,6 +98,11 @@
   const STRING_NAMES = ["e", "B", "G", "D", "A", "E"]; // 위(가는줄) -> 아래(굵은줄)
   const TUNING_MIDI = [64, 59, 55, 50, 45, 40];         // 각 줄의 개방현 MIDI (표준 튜닝)
   const SLOTS_PER_MEASURE = 16;                          // 4/4, 16분음표 그리드
+  const MEASURES_PER_LINE = 4;                           // 한 줄에 표시할 마디 수
+
+  function colsPerLine() {
+    return MEASURES_PER_LINE * SLOTS_PER_MEASURE;
+  }
 
   let tab = {
     bpm: 90,
@@ -171,70 +173,84 @@
     else if (e.key === "ArrowDown") { moveSelection(1, 0); e.preventDefault(); }
   });
 
-  // ---- 렌더링 ----
+  // ---- 렌더링 (한 줄 = MEASURES_PER_LINE 마디씩 끊어서 여러 줄로 표시) ----
   function renderGrid() {
-    const table = document.getElementById("tabGrid");
-    table.innerHTML = "";
+    const wrap = document.getElementById("tabWrap");
+    wrap.innerHTML = "";
+
+    const cpl = colsPerLine();
     const cols = totalCols();
+    const totalLines = Math.ceil(cols / cpl);
 
-    for (let s = 0; s < 6; s++) {
-      const tr = document.createElement("tr");
+    for (let lineIdx = 0; lineIdx < totalLines; lineIdx++) {
+      const startCol = lineIdx * cpl;
+      const endCol = Math.min(startCol + cpl, cols);
 
-      if (s === 0) {
-        const th = document.createElement("th");
-        th.className = "tab-clef";
-        th.rowSpan = 6;
-        th.innerHTML = '<div class="letters"><div>T</div><div>A</div><div>B</div></div>';
-        tr.appendChild(th);
-      }
+      const table = document.createElement("table");
+      table.className = "tab-line";
 
-      for (let c = 0; c < cols; c++) {
-        const td = document.createElement("td");
-        td.className = "cell";
-        if ((c + 1) % SLOTS_PER_MEASURE === 0) td.classList.add("measure-end");
-        if (selected.string === s && selected.col === c) td.classList.add("selected");
+      for (let s = 0; s < 6; s++) {
+        const tr = document.createElement("tr");
 
-        const line = document.createElement("div");
-        line.className = "string-line";
-        td.appendChild(line);
-
-        const val = tab.grid[s][c];
-        if (val !== null && val !== undefined) {
-          const label = document.createElement("div");
-          label.className = "fret-label";
-          label.textContent = val;
-          td.appendChild(label);
+        if (s === 0) {
+          const th = document.createElement("th");
+          th.className = "tab-clef";
+          th.rowSpan = 6;
+          th.innerHTML = '<div class="letters"><div>T</div><div>A</div><div>B</div></div>';
+          tr.appendChild(th);
         }
 
-        td.addEventListener("click", () => {
-          selected = { string: s, col: c };
-          renderGrid();
-          syncFretInput();
-          const input = document.getElementById("fretInput");
-          input.focus();
-          input.select();
-        });
+        for (let c = startCol; c < endCol; c++) {
+          const td = document.createElement("td");
+          td.className = "cell";
+          if (selected.string === s && selected.col === c) td.classList.add("selected");
 
-        tr.appendChild(td);
+          const lineEl = document.createElement("div");
+          lineEl.className = "string-line";
+          td.appendChild(lineEl);
+
+          const val = tab.grid[s][c];
+          if (val !== null && val !== undefined) {
+            const label = document.createElement("div");
+            label.className = "fret-label";
+            label.textContent = val;
+            td.appendChild(label);
+          }
+
+          td.addEventListener("click", () => {
+            selected = { string: s, col: c };
+            renderGrid();
+            syncFretInput();
+            const input = document.getElementById("fretInput");
+            input.focus();
+            input.select();
+          });
+
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
       }
-      table.appendChild(tr);
+      wrap.appendChild(table);
     }
   }
 
-  // ---- 마디 추가/삭제 ----
+  // ---- 마디 추가/삭제 (한 줄 = MEASURES_PER_LINE 마디 단위) ----
   document.getElementById("addMeasureBtn").addEventListener("click", () => {
-    tab.measures += 1;
+    tab.measures += MEASURES_PER_LINE;
     for (let s = 0; s < 6; s++) {
-      for (let i = 0; i < SLOTS_PER_MEASURE; i++) tab.grid[s].push(null);
+      for (let i = 0; i < colsPerLine(); i++) tab.grid[s].push(null);
     }
     renderGrid();
   });
 
   document.getElementById("removeMeasureBtn").addEventListener("click", () => {
-    if (tab.measures <= 1) return;
-    tab.measures -= 1;
-    for (let s = 0; s < 6; s++) tab.grid[s].splice(tab.grid[s].length - SLOTS_PER_MEASURE, SLOTS_PER_MEASURE);
-    selected.col = Math.min(selected.col, totalCols() - 1);
+    if (tab.measures <= MEASURES_PER_LINE) return; // 최소 한 줄은 유지
+    const cpl = colsPerLine();
+    const lineIdx = Math.floor(selected.col / cpl);
+    const startCol = lineIdx * cpl;
+    for (let s = 0; s < 6; s++) tab.grid[s].splice(startCol, cpl);
+    tab.measures -= MEASURES_PER_LINE;
+    selected.col = Math.min(startCol, totalCols() - 1);
     renderGrid();
     syncFretInput();
   });
@@ -341,12 +357,11 @@
   const CLEF_W = 90;
   const ROW_H = 24;
   const SYSTEM_GAP = 40;
-  const MEASURES_PER_LINE = 4; // 한 줄(시스템)에 들어갈 마디 수 -> A4 가로폭에 맞춰 SLOT_W를 역산
 
   function buildExportCanvas() {
-    const colsPerLine = MEASURES_PER_LINE * SLOTS_PER_MEASURE;
+    const cpl = colsPerLine();
     const usableW = PAGE_WIDTH_PX - PAGE_MARGIN_PX * 2 - CLEF_W;
-    const slotW = usableW / colsPerLine;
+    const slotW = usableW / cpl;
 
     const lineHeight = ROW_H * 5; // 6개 줄 = 5개 간격
     const lineCount = Math.ceil(tab.measures / MEASURES_PER_LINE);
@@ -397,17 +412,6 @@
         ctx.beginPath();
         ctx.moveTo(staffStartX, y);
         ctx.lineTo(staffEndX, y);
-        ctx.stroke();
-      }
-
-      // 마디 구분선
-      ctx.strokeStyle = "#333";
-      ctx.lineWidth = 2;
-      for (let m = 1; m <= measuresInLine; m++) {
-        const x = staffStartX + m * SLOTS_PER_MEASURE * slotW;
-        ctx.beginPath();
-        ctx.moveTo(x, originY - 6);
-        ctx.lineTo(x, originY + lineHeight + 6);
         ctx.stroke();
       }
 
