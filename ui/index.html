@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>TABAKBO 기타 탭 악보 편집기</title>
+<style>
+  body { font-family: "맑은 고딕", sans-serif; margin: 0; padding: 16px; background: #fafafa; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+  h1 { font-size: 17px; margin: 0; margin-right: 8px; }
+  button { padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  button:disabled { cursor: default; opacity: 0.5; }
+  label { font-size: 13px; color: #333; display: flex; align-items: center; gap: 4px; }
+  input[type="number"] { width: 56px; padding: 3px; }
+  #status { font-size: 13px; color: #666; margin-left: 4px; }
+  #status.error { color: #c0392b; }
+  #status.ok { color: #27ae60; }
+  #help { font-size: 12px; color: #888; margin-bottom: 10px; }
+
+  #tabWrap { overflow-x: auto; background: white; border-radius: 8px; padding: 16px 16px 16px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+  table#tabGrid { border-collapse: collapse; font-family: Consolas, monospace; }
+  table#tabGrid th, table#tabGrid td { text-align: center; padding: 0; }
+
+  .tab-clef {
+    font-family: Georgia, "Times New Roman", serif; font-weight: bold; font-size: 19px;
+    color: #222; border-left: 3px solid #333; border-right: 3px solid #333;
+    padding: 0 10px; vertical-align: middle;
+  }
+  .tab-clef .letters { display: flex; flex-direction: column; justify-content: center; gap: 3px; height: 100%; }
+
+  .cell {
+    width: 30px; height: 26px; min-width: 30px;
+    font-size: 12px; color: #111; cursor: pointer; user-select: none;
+    position: relative;
+  }
+  .cell .string-line {
+    position: absolute; left: 0; right: 0; top: 50%; height: 2px;
+    background: #777; transform: translateY(-1px);
+  }
+  .cell .fret-label {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: white; padding: 0 3px; font-weight: bold; z-index: 2;
+  }
+  .cell:hover .string-line { background: #4a7dfc; }
+  .cell.selected { outline: 2px solid #4a7dfc; outline-offset: -2px; z-index: 3; }
+  .cell.measure-end { border-right: 2px solid #333; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TABAKBO 기타 탭 악보 편집기</h1>
+  <button id="newBtn">새로 만들기</button>
+  <button id="openBtn">열기</button>
+  <button id="saveBtn">저장</button>
+  <button id="exportBtn">텍스트로 내보내기</button>
+  <button id="exportImageBtn">이미지로 내보내기</button>
+  <button id="addMeasureBtn">마디 추가</button>
+  <button id="removeMeasureBtn">마디 삭제</button>
+  <label>BPM <input type="number" id="bpmInput" value="90" min="20" max="300" /></label>
+  <button id="playBtn">재생</button>
+  <span id="status"></span>
+</header>
+<div id="help">
+  칸을 클릭해 선택한 뒤 숫자를 입력하면 프렛 번호가 들어갑니다 (0~24, 두 자리는 빠르게 연속 입력).
+  뮤트: <b>x</b> · 지우기: <b>Delete</b>/<b>Backspace</b> · 이동: 방향키
+</div>
+
+<div id="tabWrap">
+  <table id="tabGrid"></table>
+</div>
+
+<script>
+  // ---- 데이터 모델 ----
+  const STRING_NAMES = ["e", "B", "G", "D", "A", "E"]; // 위(가는줄) -> 아래(굵은줄)
+  const TUNING_MIDI = [64, 59, 55, 50, 45, 40];         // 각 줄의 개방현 MIDI (표준 튜닝)
+  const SLOTS_PER_MEASURE = 16;                          // 4/4, 16분음표 그리드
+
+  let tab = {
+    bpm: 90,
+    measures: 4,
+    grid: [], // grid[stringIndex][col] = fret(int) | "x"(뮤트) | null
+  };
+
+  function totalCols() {
+    return tab.measures * SLOTS_PER_MEASURE;
+  }
+
+  function makeEmptyGrid(measures) {
+    const cols = measures * SLOTS_PER_MEASURE;
+    return STRING_NAMES.map(() => new Array(cols).fill(null));
+  }
+
+  function resetTab() {
+    tab = { bpm: 90, measures: 4, grid: makeEmptyGrid(4) };
+    selected = { string: 0, col: 0 };
+    document.getElementById("bpmInput").value = tab.bpm;
+    renderGrid();
+  }
+
+  // ---- 선택 상태 & 숫자 입력 버퍼 ----
+  let selected = { string: 0, col: 0 };
+  let numberBuffer = "";
+  let numberBufferTimer = null;
+
+  function setFret(stringIdx, col, value) {
+    tab.grid[stringIdx][col] = value;
+    renderGrid();
+  }
+
+  function clearBufferSoon() {
+    if (numberBufferTimer) clearTimeout(numberBufferTimer);
+    numberBufferTimer = setTimeout(() => { numberBuffer = ""; }, 600);
+  }
+
+  function handleDigit(d) {
+    let candidate = numberBuffer + d;
+    let val = parseInt(candidate, 10);
+    if (val > 24) {
+      candidate = d;
+      val = parseInt(candidate, 10);
+    }
+    numberBuffer = candidate;
+    setFret(selected.string, selected.col, val);
+    clearBufferSoon();
+  }
+
+  function moveSelection(dString, dCol) {
+    numberBuffer = "";
+    selected.string = Math.min(5, Math.max(0, selected.string + dString));
+    selected.col = Math.min(totalCols() - 1, Math.max(0, selected.col + dCol));
+    renderGrid();
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key >= "0" && e.key <= "9") { handleDigit(e.key); e.preventDefault(); }
+    else if (e.key.toLowerCase() === "x") { numberBuffer = ""; setFret(selected.string, selected.col, "x"); e.preventDefault(); }
+    else if (e.key === "Delete" || e.key === "Backspace") { numberBuffer = ""; setFret(selected.string, selected.col, null); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { moveSelection(0, -1); e.preventDefault(); }
+    else if (e.key === "ArrowRight") { moveSelection(0, 1); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { moveSelection(-1, 0); e.preventDefault(); }
+    else if (e.key === "ArrowDown") { moveSelection(1, 0); e.preventDefault(); }
+  });
+
+  // ---- 렌더링 ----
+  function renderGrid() {
+    const table = document.getElementById("tabGrid");
+    table.innerHTML = "";
+    const cols = totalCols();
+
+    for (let s = 0; s < 6; s++) {
+      const tr = document.createElement("tr");
+
+      if (s === 0) {
+        const th = document.createElement("th");
+        th.className = "tab-clef";
+        th.rowSpan = 6;
+        th.innerHTML = '<div class="letters"><div>T</div><div>A</div><div>B</div></div>';
+        tr.appendChild(th);
+      }
+
+      for (let c = 0; c < cols; c++) {
+        const td = document.createElement("td");
+        td.className = "cell";
+        if ((c + 1) % SLOTS_PER_MEASURE === 0) td.classList.add("measure-end");
+        if (selected.string === s && selected.col === c) td.classList.add("selected");
+
+        const line = document.createElement("div");
+        line.className = "string-line";
+        td.appendChild(line);
+
+        const val = tab.grid[s][c];
+        if (val !== null && val !== undefined) {
+          const label = document.createElement("div");
+          label.className = "fret-label";
+          label.textContent = val;
+          td.appendChild(label);
+        }
+
+        td.addEventListener("click", () => {
+          selected = { string: s, col: c };
+          numberBuffer = "";
+          renderGrid();
+        });
+
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    }
+  }
+
+  // ---- 마디 추가/삭제 ----
+  document.getElementById("addMeasureBtn").addEventListener("click", () => {
+    tab.measures += 1;
+    for (let s = 0; s < 6; s++) {
+      for (let i = 0; i < SLOTS_PER_MEASURE; i++) tab.grid[s].push(null);
+    }
+    renderGrid();
+  });
+
+  document.getElementById("removeMeasureBtn").addEventListener("click", () => {
+    if (tab.measures <= 1) return;
+    tab.measures -= 1;
+    for (let s = 0; s < 6; s++) tab.grid[s].splice(tab.grid[s].length - SLOTS_PER_MEASURE, SLOTS_PER_MEASURE);
+    selected.col = Math.min(selected.col, totalCols() - 1);
+    renderGrid();
+  });
+
+  // ---- 상태 표시 ----
+  function setStatus(text, cls) {
+    const el = document.getElementById("status");
+    el.textContent = text;
+    el.className = cls || "";
+  }
+
+  // ---- 저장 / 열기 / 내보내기 ----
+  document.getElementById("newBtn").addEventListener("click", () => {
+    if (confirm("현재 작업 중인 탭을 지우고 새로 시작할까요?")) resetTab();
+  });
+
+  document.getElementById("saveBtn").addEventListener("click", async () => {
+    tab.bpm = parseInt(document.getElementById("bpmInput").value, 10) || 90;
+    const result = await window.pywebview.api.save_tab(JSON.stringify(tab));
+    if (result.status === "ok") setStatus("저장됨: " + result.path, "ok");
+    else if (result.status === "error") setStatus("오류: " + result.message, "error");
+  });
+
+  document.getElementById("openBtn").addEventListener("click", async () => {
+    const result = await window.pywebview.api.load_tab();
+    if (result.status === "ok") {
+      try {
+        const loaded = JSON.parse(result.data);
+        tab = loaded;
+        selected = { string: 0, col: 0 };
+        document.getElementById("bpmInput").value = tab.bpm || 90;
+        renderGrid();
+        setStatus(result.filename + " 불러옴", "ok");
+      } catch (e) {
+        setStatus("파일을 읽을 수 없습니다: " + e, "error");
+      }
+    } else if (result.status === "error") {
+      setStatus("오류: " + result.message, "error");
+    }
+  });
+
+  document.getElementById("exportBtn").addEventListener("click", async () => {
+    const text = buildAsciiTab();
+    const result = await window.pywebview.api.export_text(text);
+    if (result.status === "ok") setStatus("내보냄: " + result.path, "ok");
+    else if (result.status === "error") setStatus("오류: " + result.message, "error");
+  });
+
+  function buildAsciiTab() {
+    const cols = totalCols();
+    const widths = [];
+    for (let c = 0; c < cols; c++) {
+      let w = 1;
+      for (let s = 0; s < 6; s++) {
+        const v = tab.grid[s][c];
+        if (v !== null && v !== undefined) w = Math.max(w, String(v).length);
+      }
+      widths.push(w);
+    }
+
+    let lines = [];
+    for (let s = 0; s < 6; s++) {
+      let line = STRING_NAMES[s] + "|";
+      for (let c = 0; c < cols; c++) {
+        const v = tab.grid[s][c];
+        const cell = (v === null || v === undefined) ? "-".repeat(widths[c]) : String(v).padEnd(widths[c], "-");
+        line += cell + "-";
+        if ((c + 1) % SLOTS_PER_MEASURE === 0) line += "|";
+      }
+      lines.push(line);
+    }
+    return lines.join("\n");
+  }
+
+  // ---- 이미지로 내보내기 (A4 가로폭에 맞춰 여러 줄로 자동 배치) ----
+  const EXPORT_DPI = 150;
+  const PAGE_WIDTH_PX = Math.round((210 / 25.4) * EXPORT_DPI); // A4 가로폭
+  const PAGE_MARGIN_PX = Math.round(0.5 * EXPORT_DPI);          // 여백 0.5인치
+  const CLEF_W = 90;
+  const ROW_H = 24;
+  const SYSTEM_GAP = 40;
+  const MEASURES_PER_LINE = 4; // 한 줄(시스템)에 들어갈 마디 수 -> A4 가로폭에 맞춰 SLOT_W를 역산
+
+  function buildExportCanvas() {
+    const colsPerLine = MEASURES_PER_LINE * SLOTS_PER_MEASURE;
+    const usableW = PAGE_WIDTH_PX - PAGE_MARGIN_PX * 2 - CLEF_W;
+    const slotW = usableW / colsPerLine;
+
+    const lineHeight = ROW_H * 5; // 6개 줄 = 5개 간격
+    const lineCount = Math.ceil(tab.measures / MEASURES_PER_LINE);
+    const canvasHeight = PAGE_MARGIN_PX * 2 + lineCount * lineHeight + (lineCount - 1) * SYSTEM_GAP;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = PAGE_WIDTH_PX;
+    canvas.height = canvasHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (let line = 0; line < lineCount; line++) {
+      const startMeasure = line * MEASURES_PER_LINE;
+      const measuresInLine = Math.min(MEASURES_PER_LINE, tab.measures - startMeasure);
+      const startCol = startMeasure * SLOTS_PER_MEASURE;
+      const colsInLine = measuresInLine * SLOTS_PER_MEASURE;
+
+      const originX = PAGE_MARGIN_PX;
+      const originY = PAGE_MARGIN_PX + line * (lineHeight + SYSTEM_GAP);
+      const staffStartX = originX + CLEF_W;
+      const staffEndX = staffStartX + colsInLine * slotW;
+
+      // TAB 클레프
+      ctx.font = "bold 18px Georgia, serif";
+      ctx.fillStyle = "#222";
+      ["T", "A", "B"].forEach((ch, i) => {
+        ctx.fillText(ch, originX + CLEF_W / 2, originY + lineHeight / 2 + (i - 1) * 20);
+      });
+
+      // 시작/끝 세로선(클레프 좌우 경계)
+      ctx.strokeStyle = "#333";
+      ctx.lineWidth = 2.5;
+      [originX, staffStartX].forEach((x) => {
+        ctx.beginPath();
+        ctx.moveTo(x, originY - 6);
+        ctx.lineTo(x, originY + lineHeight + 6);
+        ctx.stroke();
+      });
+
+      // 6개 줄(현)
+      ctx.strokeStyle = "#777";
+      ctx.lineWidth = 1.4;
+      for (let s = 0; s < 6; s++) {
+        const y = originY + s * ROW_H;
+        ctx.beginPath();
+        ctx.moveTo(staffStartX, y);
+        ctx.lineTo(staffEndX, y);
+        ctx.stroke();
+      }
+
+      // 마디 구분선
+      ctx.strokeStyle = "#333";
+      ctx.lineWidth = 2;
+      for (let m = 1; m <= measuresInLine; m++) {
+        const x = staffStartX + m * SLOTS_PER_MEASURE * slotW;
+        ctx.beginPath();
+        ctx.moveTo(x, originY - 6);
+        ctx.lineTo(x, originY + lineHeight + 6);
+        ctx.stroke();
+      }
+
+      // 프렛 번호 (줄 위에 흰 배경으로 겹쳐 그리기)
+      ctx.font = "bold 12px Consolas, monospace";
+      for (let c = 0; c < colsInLine; c++) {
+        const actualCol = startCol + c;
+        const x = staffStartX + c * slotW + slotW / 2;
+        for (let s = 0; s < 6; s++) {
+          const val = tab.grid[s][actualCol];
+          if (val === null || val === undefined) continue;
+          const y = originY + s * ROW_H;
+          const text = String(val);
+          const textWidth = ctx.measureText(text).width;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(x - textWidth / 2 - 2, y - 8, textWidth + 4, 16);
+          ctx.fillStyle = "#111";
+          ctx.fillText(text, x, y);
+        }
+      }
+    }
+
+    return canvas;
+  }
+
+  document.getElementById("exportImageBtn").addEventListener("click", async () => {
+    const canvas = buildExportCanvas();
+    const dataUrl = canvas.toDataURL("image/png");
+    const result = await window.pywebview.api.export_image(dataUrl);
+    if (result.status === "ok") setStatus("이미지 저장됨: " + result.path, "ok");
+    else if (result.status === "error") setStatus("오류: " + result.message, "error");
+  });
+
+  // ---- 재생 ----
+  let audioCtx = null;
+  let isPlaying = false;
+  let stopRequested = false;
+  let scheduledOscillators = [];
+  let playbackTimer = null;
+
+  function midiToFreq(midi) {
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  function setPlayButtonState() {
+    document.getElementById("playBtn").textContent = isPlaying ? "정지" : "재생";
+  }
+
+  function stopPlayback() {
+    stopRequested = true;
+    scheduledOscillators.forEach((osc) => { try { osc.stop(); } catch (e) {} });
+    scheduledOscillators = [];
+    if (playbackTimer) { clearTimeout(playbackTimer); playbackTimer = null; }
+    isPlaying = false;
+    setPlayButtonState();
+  }
+
+  function playTab() {
+    if (isPlaying) { stopPlayback(); return; }
+
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    stopRequested = false;
+    isPlaying = true;
+    setPlayButtonState();
+
+    const bpm = parseInt(document.getElementById("bpmInput").value, 10) || 90;
+    const slotSec = (60 / bpm) * (4 / SLOTS_PER_MEASURE); // 16분음표 하나의 길이
+    const cols = totalCols();
+    const startAt = audioCtx.currentTime + 0.15;
+
+    for (let c = 0; c < cols; c++) {
+      const t = startAt + c * slotSec;
+      for (let s = 0; s < 6; s++) {
+        const v = tab.grid[s][c];
+        if (v === null || v === undefined || v === "x") continue;
+        const midi = TUNING_MIDI[s] + parseInt(v, 10);
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = midiToFreq(midi);
+
+        const peak = 0.25;
+        const decay = 0.6; // 통기타 여운을 흉내낸 감쇠 시간
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(peak, t + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + decay);
+
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + decay + 0.05);
+        scheduledOscillators.push(osc);
+      }
+    }
+
+    const totalMs = (cols * slotSec + 0.7) * 1000;
+    playbackTimer = setTimeout(() => {
+      if (!stopRequested) { isPlaying = false; setPlayButtonState(); }
+      scheduledOscillators = [];
+    }, totalMs);
+  }
+
+  document.getElementById("playBtn").addEventListener("click", playTab);
+
+  // ---- 시작 ----
+  resetTab();
+</script>
+</body>
+</html>
