@@ -122,6 +122,8 @@
   }
   .cell:hover { background-image: linear-gradient(#4a7dfc, #4a7dfc); }
   .cell.selected { outline: 2px solid #4a7dfc; outline-offset: -2px; z-index: 3; }
+  .cell.dragging-source { opacity: 0.35; }
+  .cell.drag-target { outline: 2px dashed var(--primary); outline-offset: -2px; background-color: rgba(67,97,238,0.1); z-index: 3; }
 </style>
 </head>
 <body>
@@ -257,6 +259,32 @@
     syncFretInput();
   }
 
+  function selectCell(s, c) {
+    selected = { string: s, col: c };
+    renderGrid();
+    syncFretInput();
+    const input = document.getElementById("fretInput");
+    input.focus();
+    input.select();
+  }
+
+  // ---- 마우스로 이미 입력된 음표를 다른 칸으로 옮기기 ----
+  // (터치는 화면 스크롤과 충돌하므로 기존처럼 탭=선택만 동작)
+  let dragSource = null;
+  let dragHighlightEl = null;
+
+  function setDragHighlight(el) {
+    if (dragHighlightEl === el) return;
+    if (dragHighlightEl) dragHighlightEl.classList.remove("drag-target");
+    dragHighlightEl = el;
+    if (dragHighlightEl) dragHighlightEl.classList.add("drag-target");
+  }
+
+  function cellAtPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    return el ? el.closest(".cell") : null;
+  }
+
   document.getElementById("fretInput").addEventListener("input", (e) => {
     let v = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
     if (v !== "" && parseInt(v, 10) > 24) v = "24";
@@ -312,6 +340,8 @@
         for (let c = startCol; c < endCol; c++) {
           const td = document.createElement("td");
           td.className = "cell";
+          td.dataset.string = s;
+          td.dataset.col = c;
           if (selected.string === s && selected.col === c) td.classList.add("selected");
 
           const val = tab.grid[s][c];
@@ -322,13 +352,50 @@
             td.appendChild(label);
           }
 
-          td.addEventListener("click", () => {
-            selected = { string: s, col: c };
-            renderGrid();
-            syncFretInput();
-            const input = document.getElementById("fretInput");
-            input.focus();
-            input.select();
+          td.addEventListener("pointerdown", (e) => {
+            dragSource = { string: s, col: c, value: tab.grid[s][c], pointerType: e.pointerType };
+            td.setPointerCapture(e.pointerId);
+            if (e.pointerType === "mouse" && dragSource.value !== null && dragSource.value !== undefined) {
+              td.classList.add("dragging-source");
+            }
+          });
+
+          td.addEventListener("pointermove", (e) => {
+            if (!dragSource || dragSource.pointerType !== "mouse") return;
+            setDragHighlight(cellAtPoint(e.clientX, e.clientY));
+          });
+
+          td.addEventListener("pointerup", (e) => {
+            if (!dragSource) return;
+            setDragHighlight(null);
+            td.classList.remove("dragging-source");
+
+            let finalString = dragSource.string;
+            let finalCol = dragSource.col;
+
+            if (dragSource.pointerType === "mouse") {
+              const targetTd = cellAtPoint(e.clientX, e.clientY);
+              if (targetTd) {
+                const ts = parseInt(targetTd.dataset.string, 10);
+                const tc = parseInt(targetTd.dataset.col, 10);
+                const moved = ts !== dragSource.string || tc !== dragSource.col;
+                if (moved && dragSource.value !== null && dragSource.value !== undefined) {
+                  tab.grid[dragSource.string][dragSource.col] = null;
+                  tab.grid[ts][tc] = dragSource.value;
+                }
+                finalString = ts;
+                finalCol = tc;
+              }
+            }
+
+            dragSource = null;
+            selectCell(finalString, finalCol);
+          });
+
+          td.addEventListener("pointercancel", () => {
+            setDragHighlight(null);
+            td.classList.remove("dragging-source");
+            dragSource = null;
           });
 
           tr.appendChild(td);
