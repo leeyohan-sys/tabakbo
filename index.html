@@ -695,7 +695,7 @@
       const staffStartX = originX + CLEF_W;
       const staffEndX = staffStartX + colsInLine * slotW;
 
-      exportLineRects.push({ top: originY, bottom: originY + lineHeight, left: originX, right: staffEndX });
+      exportLineRects.push({ top: originY, bottom: originY + lineHeight, left: staffStartX, right: staffEndX });
 
       // TAB 클레프
       ctx.font = "bold 18px Georgia, serif";
@@ -757,7 +757,10 @@
     if (canvasRect.width === 0 || canvasRect.height === 0) return [];
     const scaleX = canvas.width / canvasRect.width;
     const scaleY = canvas.height / canvasRect.height;
-    const rows = document.querySelectorAll("#gridContent .tab-line-row");
+    // TAB 클레프(T/A/B)를 뺀 표(음표 칸) 영역만 기준으로 삼는다 — 내보내기의 CLEF_W와
+    // 화면상 실제 클레프 너비가 서로 달라서, 줄 전체 너비로 배율을 잡으면 클레프에서
+    // 멀어질수록(오른쪽으로 갈수록) 위치 오차가 누적돼 그림이 왼쪽으로 쏠려 보였다.
+    const rows = document.querySelectorAll("#gridContent .tab-line-row .tab-line");
     return Array.from(rows).map((row) => {
       const r = row.getBoundingClientRect();
       return {
