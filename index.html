@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
 <link rel="stylesheet" as="style" crossorigin
   href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root {
     --bg: #f2f4f7;
@@ -656,173 +657,46 @@
     return lines.join("\n");
   }
 
-  // ---- 이미지로 내보내기 (A4 가로폭에 맞춰 여러 줄로 자동 배치) ----
-  const EXPORT_DPI = 150;
-  const PAGE_WIDTH_PX = Math.round((210 / 25.4) * EXPORT_DPI); // A4 가로폭
-  const PAGE_MARGIN_PX = Math.round(0.5 * EXPORT_DPI);          // 여백 0.5인치
-  const CLEF_W = 90;
-  const ROW_H = 24;
-  const SYSTEM_GAP = 40;
+  // ---- 이미지로 내보내기 ----
+  // 좌표를 다시 계산해서 그리는 대신, 화면에 보이는 그리드+펜 그림을 그대로 캡처해서
+  // 내보낸다. 이러면 작업 화면과 이미지가 항상 100% 똑같다.
+  const EXPORT_TARGET_WIDTH = 1600; // 내보낼 이미지 기준 폭(px). 화면 그대로를 이 폭으로 확대/축소한다.
+  const EXPORT_MARGIN = 50;
 
-  function buildExportCanvas() {
-    const cpl = colsPerLine();
-    const usableW = PAGE_WIDTH_PX - PAGE_MARGIN_PX * 2 - CLEF_W;
-    const slotW = usableW / cpl;
+  async function buildExportCanvas() {
+    const target = document.getElementById("tabInner");
+    const selectedEls = Array.from(document.querySelectorAll("#gridContent .cell.selected"));
+    selectedEls.forEach((el) => el.classList.remove("selected"));
 
-    const lineHeight = ROW_H * 5; // 6개 줄 = 5개 간격
-    const lineCount = Math.ceil(tab.measures / MEASURES_PER_LINE);
-    const canvasHeight = PAGE_MARGIN_PX * 2 + lineCount * lineHeight + (lineCount - 1) * SYSTEM_GAP;
+    let captured;
+    try {
+      captured = await html2canvas(target, {
+        backgroundColor: "#ffffff",
+        scale: EXPORT_TARGET_WIDTH / target.offsetWidth,
+      });
+    } finally {
+      selectedEls.forEach((el) => el.classList.add("selected"));
+    }
 
+    const margin = Math.round(EXPORT_MARGIN * (captured.width / EXPORT_TARGET_WIDTH));
     const canvas = document.createElement("canvas");
-    canvas.width = PAGE_WIDTH_PX;
-    canvas.height = canvasHeight;
+    canvas.width = captured.width + margin * 2;
+    canvas.height = captured.height + margin * 2;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    const exportLineRects = [];
-
-    for (let line = 0; line < lineCount; line++) {
-      const startMeasure = line * MEASURES_PER_LINE;
-      const measuresInLine = Math.min(MEASURES_PER_LINE, tab.measures - startMeasure);
-      const startCol = startMeasure * SLOTS_PER_MEASURE;
-      const colsInLine = measuresInLine * SLOTS_PER_MEASURE;
-
-      const originX = PAGE_MARGIN_PX;
-      const originY = PAGE_MARGIN_PX + line * (lineHeight + SYSTEM_GAP);
-      const staffStartX = originX + CLEF_W;
-      const staffEndX = staffStartX + colsInLine * slotW;
-
-      exportLineRects.push({ top: originY, bottom: originY + lineHeight, left: staffStartX, right: staffEndX });
-
-      // TAB 클레프
-      ctx.font = "bold 18px Georgia, serif";
-      ctx.fillStyle = "#222";
-      ["T", "A", "B"].forEach((ch, i) => {
-        ctx.fillText(ch, originX + CLEF_W / 2, originY + lineHeight / 2 + (i - 1) * 20);
-      });
-
-      // 시작/끝 세로선(클레프 좌우 경계)
-      ctx.strokeStyle = "#333";
-      ctx.lineWidth = 2.5;
-      [originX, staffStartX].forEach((x) => {
-        ctx.beginPath();
-        ctx.moveTo(x, originY - 6);
-        ctx.lineTo(x, originY + lineHeight + 6);
-        ctx.stroke();
-      });
-
-      // 6개 줄(현)
-      ctx.strokeStyle = "#777";
-      ctx.lineWidth = 1.4;
-      for (let s = 0; s < 6; s++) {
-        const y = originY + s * ROW_H;
-        ctx.beginPath();
-        ctx.moveTo(staffStartX, y);
-        ctx.lineTo(staffEndX, y);
-        ctx.stroke();
-      }
-
-      // 프렛 번호 (줄 위에 흰 배경으로 겹쳐 그리기)
-      ctx.font = "bold 12px Consolas, monospace";
-      for (let c = 0; c < colsInLine; c++) {
-        const actualCol = startCol + c;
-        const x = staffStartX + c * slotW + slotW / 2;
-        for (let s = 0; s < 6; s++) {
-          const val = tab.grid[s][actualCol];
-          if (val === null || val === undefined) continue;
-          const y = originY + s * ROW_H;
-          const text = String(val);
-          const textWidth = ctx.measureText(text).width;
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(x - textWidth / 2 - 2, y - 8, textWidth + 4, 16);
-          ctx.fillStyle = "#111";
-          ctx.fillText(text, x, y);
-        }
-      }
-    }
-
-    drawStrokesOnExportCanvas(ctx, exportLineRects);
-
+    ctx.drawImage(captured, margin, margin);
     return canvas;
   }
 
-  // 화면에 그린 펜 획을, 화면 줄(4마디씩)별 위치 비율을 그대로 유지한 채
-  // 내보내기 캔버스의 대응하는 줄 영역으로 옮겨 그린다(줄 배치/여백/DPI가 서로 다르므로).
-  function getScreenLineRects() {
-    const canvas = getPenCanvas();
-    const canvasRect = canvas.getBoundingClientRect();
-    if (canvasRect.width === 0 || canvasRect.height === 0) return [];
-    const scaleX = canvas.width / canvasRect.width;
-    const scaleY = canvas.height / canvasRect.height;
-    // TAB 클레프(T/A/B)를 뺀 표(음표 칸) 영역만 기준으로 삼는다 — 내보내기의 CLEF_W와
-    // 화면상 실제 클레프 너비가 서로 달라서, 줄 전체 너비로 배율을 잡으면 클레프에서
-    // 멀어질수록(오른쪽으로 갈수록) 위치 오차가 누적돼 그림이 왼쪽으로 쏠려 보였다.
-    const rows = document.querySelectorAll("#gridContent .tab-line-row .tab-line");
-    return Array.from(rows).map((row) => {
-      const r = row.getBoundingClientRect();
-      return {
-        top: (r.top - canvasRect.top) * scaleY,
-        bottom: (r.bottom - canvasRect.top) * scaleY,
-        left: (r.left - canvasRect.left) * scaleX,
-        right: (r.right - canvasRect.left) * scaleX,
-      };
-    });
-  }
-
-  function mapPointToExport(px, py, screenLineRects, exportLineRects) {
-    let idx = screenLineRects.findIndex((r) => py >= r.top && py <= r.bottom);
-    if (idx === -1) {
-      let bestDist = Infinity;
-      screenLineRects.forEach((r, i) => {
-        const dist = py < r.top ? r.top - py : py - r.bottom;
-        if (dist < bestDist) { bestDist = dist; idx = i; }
-      });
+  document.getElementById("exportImageBtn").addEventListener("click", async () => {
+    try {
+      const canvas = await buildExportCanvas();
+      downloadDataUrl(canvas.toDataURL("image/png"), "tab.png");
+      setStatus("tab.png 다운로드됨", "ok");
+    } catch (err) {
+      setStatus("이미지 생성 실패: " + err, "error");
     }
-    const sRect = screenLineRects[idx];
-    const eRect = exportLineRects[idx];
-    // 가로/세로 각각 실제 비율로 옮겨야 화면과 정확히 같은 위치(어느 줄의 어느 칸 위인지)에
-    // 겹쳐진다. 화면 칸과 내보내기 칸의 가로세로 비율이 달라서(특히 모바일) 손그림이 약간
-    // 눌려 보일 수 있지만, 위치를 정확히 맞추는 쪽을 우선한다.
-    const scaleX = (eRect.right - eRect.left) / (sRect.right - sRect.left);
-    const scaleY = (eRect.bottom - eRect.top) / (sRect.bottom - sRect.top);
-    return {
-      x: eRect.left + (px - sRect.left) * scaleX,
-      y: eRect.top + (py - sRect.top) * scaleY,
-      scale: scaleX,
-    };
-  }
-
-  function drawStrokesOnExportCanvas(ctx, exportLineRects) {
-    if (!strokes.length || !exportLineRects.length) return;
-    const screenLineRects = getScreenLineRects();
-    if (screenLineRects.length !== exportLineRects.length) return;
-
-    const canvas = getPenCanvas();
-    ctx.strokeStyle = "#111111";
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    strokes.forEach((stroke) => {
-      if (stroke.length < 2) return;
-      const mapped = stroke.map((p) =>
-        mapPointToExport(p.xFrac * canvas.width, p.y, screenLineRects, exportLineRects)
-      );
-      const avgScale = mapped.reduce((sum, m) => sum + m.scale, 0) / mapped.length;
-      ctx.lineWidth = Math.max(1, 2.5 * avgScale);
-      ctx.beginPath();
-      ctx.moveTo(mapped[0].x, mapped[0].y);
-      for (let i = 1; i < mapped.length; i++) ctx.lineTo(mapped[i].x, mapped[i].y);
-      ctx.stroke();
-    });
-  }
-
-  document.getElementById("exportImageBtn").addEventListener("click", () => {
-    const canvas = buildExportCanvas();
-    downloadDataUrl(canvas.toDataURL("image/png"), "tab.png");
-    setStatus("tab.png 다운로드됨", "ok");
   });
 
   // ---- 재생 ----
