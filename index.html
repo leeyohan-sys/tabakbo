@@ -588,16 +588,35 @@
     a.remove();
   }
 
+  // ---- 저장 파일 이름 ----
+  let lastBaseName = "tab";
+
+  function sanitizeFilename(name) {
+    return name.replace(/[\\/:*?"<>|]/g, "_").trim();
+  }
+
+  // 확장자를 뺀 파일 이름을 물어보고, 다음 저장에도 같은 이름이 기본값으로 뜨도록 기억한다.
+  // 취소를 누르면 null을 반환한다.
+  function promptFilename(ext) {
+    const input = window.prompt("파일 이름을 입력하세요", lastBaseName);
+    if (input === null) return null;
+    const base = sanitizeFilename(input) || "tab";
+    lastBaseName = base;
+    return base + "." + ext;
+  }
+
   // ---- 새로 만들기 / 저장 / 열기 / 내보내기 ----
   document.getElementById("newBtn").addEventListener("click", () => {
     if (confirm("현재 작업 중인 탭을 지우고 새로 시작할까요?")) resetTab();
   });
 
   document.getElementById("saveBtn").addEventListener("click", () => {
+    const filename = promptFilename("json");
+    if (!filename) return;
     tab.bpm = parseInt(document.getElementById("bpmInput").value, 10) || 90;
     tab.drawing = strokes;
-    downloadBlob(JSON.stringify(tab), "tab.json", "application/json");
-    setStatus("tab.json 다운로드됨", "ok");
+    downloadBlob(JSON.stringify(tab), filename, "application/json");
+    setStatus(filename + " 다운로드됨", "ok");
   });
 
   document.getElementById("openBtn").addEventListener("click", () => {
@@ -617,6 +636,7 @@
         renderGrid();
         redrawPenStrokes();
         syncFretInput();
+        lastBaseName = sanitizeFilename(file.name.replace(/\.json$/i, "")) || lastBaseName;
         setStatus(file.name + " 불러옴", "ok");
       } catch (err) {
         setStatus("파일을 읽을 수 없습니다: " + err, "error");
@@ -627,8 +647,10 @@
   });
 
   document.getElementById("exportBtn").addEventListener("click", () => {
-    downloadBlob(buildAsciiTab(), "tab.txt", "text/plain");
-    setStatus("tab.txt 다운로드됨", "ok");
+    const filename = promptFilename("txt");
+    if (!filename) return;
+    downloadBlob(buildAsciiTab(), filename, "text/plain");
+    setStatus(filename + " 다운로드됨", "ok");
   });
 
   function buildAsciiTab() {
@@ -690,10 +712,12 @@
   }
 
   document.getElementById("exportImageBtn").addEventListener("click", async () => {
+    const filename = promptFilename("png");
+    if (!filename) return;
     try {
       const canvas = await buildExportCanvas();
-      downloadDataUrl(canvas.toDataURL("image/png"), "tab.png");
-      setStatus("tab.png 다운로드됨", "ok");
+      downloadDataUrl(canvas.toDataURL("image/png"), filename);
+      setStatus(filename + " 다운로드됨", "ok");
     } catch (err) {
       setStatus("이미지 생성 실패: " + err, "error");
     }
