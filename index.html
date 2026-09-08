@@ -783,14 +783,15 @@
     }
     const sRect = screenLineRects[idx];
     const eRect = exportLineRects[idx];
-    // 가로/세로에 같은 배율(칸 폭 비율)을 써서 손그림 비율이 찌그러지지 않게 한다.
-    // (화면은 칸이 정사각형에 가깝고 내보내기는 칸이 더 납작해서, 가로/세로를 각각 다른
-    // 배율로 늘리면 둥근 곡선이 뾰족하게 깨져 보인다.)
-    const scale = (eRect.right - eRect.left) / (sRect.right - sRect.left);
+    // 가로/세로 각각 실제 비율로 옮겨야 화면과 정확히 같은 위치(어느 줄의 어느 칸 위인지)에
+    // 겹쳐진다. 화면 칸과 내보내기 칸의 가로세로 비율이 달라서(특히 모바일) 손그림이 약간
+    // 눌려 보일 수 있지만, 위치를 정확히 맞추는 쪽을 우선한다.
+    const scaleX = (eRect.right - eRect.left) / (sRect.right - sRect.left);
+    const scaleY = (eRect.bottom - eRect.top) / (sRect.bottom - sRect.top);
     return {
-      x: eRect.left + (px - sRect.left) * scale,
-      y: eRect.top + (py - sRect.top) * scale - ROW_H / 4, // 4분의 1 칸만 위로 올려서 숫자와 안 겹치게
-      scale,
+      x: eRect.left + (px - sRect.left) * scaleX,
+      y: eRect.top + (py - sRect.top) * scaleY,
+      scale: scaleX,
     };
   }
 
