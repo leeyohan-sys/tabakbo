@@ -242,6 +242,7 @@
     strokes = [];
     document.getElementById("bpmInput").value = tab.bpm;
     renderGrid();
+    redrawPenStrokes();
     syncFretInput();
   }
 
@@ -613,6 +614,7 @@
         strokes = tab.drawing || [];
         document.getElementById("bpmInput").value = tab.bpm || 90;
         renderGrid();
+        redrawPenStrokes();
         syncFretInput();
         setStatus(file.name + " 불러옴", "ok");
       } catch (err) {
@@ -680,6 +682,8 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+    const exportLineRects = [];
+
     for (let line = 0; line < lineCount; line++) {
       const startMeasure = line * MEASURES_PER_LINE;
       const measuresInLine = Math.min(MEASURES_PER_LINE, tab.measures - startMeasure);
@@ -690,6 +694,8 @@
       const originY = PAGE_MARGIN_PX + line * (lineHeight + SYSTEM_GAP);
       const staffStartX = originX + CLEF_W;
       const staffEndX = staffStartX + colsInLine * slotW;
+
+      exportLineRects.push({ top: originY, bottom: originY + lineHeight, left: originX, right: staffEndX });
 
       // TAB 클레프
       ctx.font = "bold 18px Georgia, serif";
@@ -738,7 +744,77 @@
       }
     }
 
+    drawStrokesOnExportCanvas(ctx, exportLineRects);
+
     return canvas;
+  }
+
+  // 화면에 그린 펜 획을, 화면 줄(4마디씩)별 위치 비율을 그대로 유지한 채
+  // 내보내기 캔버스의 대응하는 줄 영역으로 옮겨 그린다(줄 배치/여백/DPI가 서로 다르므로).
+  function clamp01(v) {
+    return Math.min(1, Math.max(0, v));
+  }
+
+  function getScreenLineRects() {
+    const canvas = getPenCanvas();
+    const canvasRect = canvas.getBoundingClientRect();
+    if (canvasRect.width === 0 || canvasRect.height === 0) return [];
+    const scaleX = canvas.width / canvasRect.width;
+    const scaleY = canvas.height / canvasRect.height;
+    const rows = document.querySelectorAll("#gridContent .tab-line-row");
+    return Array.from(rows).map((row) => {
+      const r = row.getBoundingClientRect();
+      return {
+        top: (r.top - canvasRect.top) * scaleY,
+        bottom: (r.bottom - canvasRect.top) * scaleY,
+        left: (r.left - canvasRect.left) * scaleX,
+        right: (r.right - canvasRect.left) * scaleX,
+      };
+    });
+  }
+
+  function mapPointToExport(px, py, screenLineRects, exportLineRects) {
+    let idx = screenLineRects.findIndex((r) => py >= r.top && py <= r.bottom);
+    if (idx === -1) {
+      let bestDist = Infinity;
+      screenLineRects.forEach((r, i) => {
+        const dist = py < r.top ? r.top - py : py - r.bottom;
+        if (dist < bestDist) { bestDist = dist; idx = i; }
+      });
+    }
+    const sRect = screenLineRects[idx];
+    const eRect = exportLineRects[idx];
+    const fx = clamp01((px - sRect.left) / (sRect.right - sRect.left));
+    const fy = clamp01((py - sRect.top) / (sRect.bottom - sRect.top));
+    return {
+      x: eRect.left + fx * (eRect.right - eRect.left),
+      y: eRect.top + fy * (eRect.bottom - eRect.top),
+      scale: (eRect.bottom - eRect.top) / (sRect.bottom - sRect.top),
+    };
+  }
+
+  function drawStrokesOnExportCanvas(ctx, exportLineRects) {
+    if (!strokes.length || !exportLineRects.length) return;
+    const screenLineRects = getScreenLineRects();
+    if (screenLineRects.length !== exportLineRects.length) return;
+
+    const canvas = getPenCanvas();
+    ctx.strokeStyle = "#111111";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    strokes.forEach((stroke) => {
+      if (stroke.length < 2) return;
+      const mapped = stroke.map((p) =>
+        mapPointToExport(p.xFrac * canvas.width, p.y, screenLineRects, exportLineRects)
+      );
+      const avgScale = mapped.reduce((sum, m) => sum + m.scale, 0) / mapped.length;
+      ctx.lineWidth = Math.max(1, 2.5 * avgScale);
+      ctx.beginPath();
+      ctx.moveTo(mapped[0].x, mapped[0].y);
+      for (let i = 1; i < mapped.length; i++) ctx.lineTo(mapped[i].x, mapped[i].y);
+      ctx.stroke();
+    });
   }
 
   document.getElementById("exportImageBtn").addEventListener("click", () => {
