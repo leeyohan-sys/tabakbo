@@ -789,7 +789,7 @@
     const scale = (eRect.right - eRect.left) / (sRect.right - sRect.left);
     return {
       x: eRect.left + (px - sRect.left) * scale,
-      y: eRect.top + (py - sRect.top) * scale,
+      y: eRect.top + (py - sRect.top) * scale - ROW_H, // 한 칸(줄) 위로 올려서 숫자와 안 겹치게
       scale,
     };
   }
