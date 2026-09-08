@@ -751,10 +751,6 @@
 
   // 화면에 그린 펜 획을, 화면 줄(4마디씩)별 위치 비율을 그대로 유지한 채
   // 내보내기 캔버스의 대응하는 줄 영역으로 옮겨 그린다(줄 배치/여백/DPI가 서로 다르므로).
-  function clamp01(v) {
-    return Math.min(1, Math.max(0, v));
-  }
-
   function getScreenLineRects() {
     const canvas = getPenCanvas();
     const canvasRect = canvas.getBoundingClientRect();
@@ -784,12 +780,14 @@
     }
     const sRect = screenLineRects[idx];
     const eRect = exportLineRects[idx];
-    const fx = clamp01((px - sRect.left) / (sRect.right - sRect.left));
-    const fy = clamp01((py - sRect.top) / (sRect.bottom - sRect.top));
+    // 가로/세로에 같은 배율(칸 폭 비율)을 써서 손그림 비율이 찌그러지지 않게 한다.
+    // (화면은 칸이 정사각형에 가깝고 내보내기는 칸이 더 납작해서, 가로/세로를 각각 다른
+    // 배율로 늘리면 둥근 곡선이 뾰족하게 깨져 보인다.)
+    const scale = (eRect.right - eRect.left) / (sRect.right - sRect.left);
     return {
-      x: eRect.left + fx * (eRect.right - eRect.left),
-      y: eRect.top + fy * (eRect.bottom - eRect.top),
-      scale: (eRect.bottom - eRect.top) / (sRect.bottom - sRect.top),
+      x: eRect.left + (px - sRect.left) * scale,
+      y: eRect.top + (py - sRect.top) * scale,
+      scale,
     };
   }
 
