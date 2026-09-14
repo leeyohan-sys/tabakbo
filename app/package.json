@@ -1,0 +1,27 @@
+{
+  "name": "tabakbo-android",
+  "version": "1.0.0",
+  "description": "TABAKBO 기타 탭 악보 편집기 - Android 앱 (Capacitor)",
+  "private": true,
+  "scripts": {
+    "build:bridge": "esbuild src/capacitor-entry.js --bundle --outfile=www/capacitor-bridge.js --format=iife",
+    "prepare:www": "npm run build:bridge && node copy-index.js",
+    "sync": "npm run prepare:www && cap sync android",
+    "open:android": "cap open android",
+    "build:debug": "npm run sync && cd android && gradlew.bat assembleDebug",
+    "build:release": "npm run sync && cd android && gradlew.bat bundleRelease"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/share": "^8.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.1",
+    "esbuild": "^0.28.2",
+    "sharp": "^0.35.4"
+  }
+}

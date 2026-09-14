@@ -7,7 +7,10 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
 <link rel="stylesheet" as="style" crossorigin
   href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<!-- 안드로이드 앱(Capacitor) 빌드에서만 존재하는 파일. 웹(GitHub Pages)에서는 404로 무시되며
+     window.TabakboNative 가 정의되지 않아 항상 브라우저 다운로드 방식으로 동작한다. -->
+<script src="capacitor-bridge.js"></script>
 <style>
   :root {
     --bg: #f2f4f7;
@@ -28,37 +31,35 @@
   h1 { font-size: 17px; font-weight: 700; margin: 0 14px 0 2px; letter-spacing: -0.02em; white-space: nowrap; }
 
   .toolbar {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    padding: 10px 14px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+    padding: 8px 12px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(16,24,40,0.04);
   }
-  .toolbar-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .toolbar-group { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   .toolbar-divider { width: 1px; align-self: stretch; background: var(--border); margin: 2px 2px; }
   .toolbar-spacer { flex: 1 1 auto; }
 
   button {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 12px; font-size: 13px; font-weight: 500; font-family: inherit;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 9px; font-size: 12px; font-weight: 500; font-family: inherit;
     color: var(--text); background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; cursor: pointer; white-space: nowrap;
+    border-radius: 9px; cursor: pointer; white-space: nowrap;
     transition: background-color .12s ease, border-color .12s ease, transform .06s ease;
   }
   button:hover { background: #f7f8fa; border-color: #d3d7de; }
   button:active { transform: translateY(1px); }
   button:disabled { cursor: default; opacity: 0.5; }
-  button.icon-only { padding: 8px; }
+  button.icon-only { padding: 6px; }
   button.active, #penBtn.active {
     background: var(--primary); border-color: var(--primary); color: var(--primary-text);
   }
   button.active:hover, #penBtn.active:hover { background: #3651d4; }
   button.danger-hover:hover { background: #fdeceb; border-color: #f6c6c4; color: var(--danger); }
 
-  .icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .icon { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-  label.bpm-field {
-    display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 4px 10px 4px 12px;
-  }
+  /* 화면에는 노출하지 않지만, JS에서 계속 bpmInput을 읽고 쓰므로 요소 자체는 남겨둔다(기본값 90). */
+  label.bpm-field { display: none; }
   input[type="number"] {
     width: 52px; padding: 5px 4px; font-size: 14px; font-family: inherit;
     border: 1px solid var(--border); border-radius: 7px; text-align: center; background: white; color: var(--text);
@@ -70,30 +71,32 @@
   #status.ok { color: #1a9e6e; }
   #help { font-size: 12px; color: var(--muted); margin: 2px 4px 12px; }
 
-  #fretBar {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
-    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    padding: 10px 14px; box-shadow: 0 1px 2px rgba(16,24,40,0.04);
-  }
-  #fretBar > span { font-size: 13px; color: var(--muted); font-weight: 500; }
+  /* 평소에는 화면 밖에 치워두고, 칸을 선택하면 그 칸 안으로 옮겨져 꽉 채운다(.cell #fretInput 규칙). */
   #fretInput {
+    position: fixed; top: -9999px; left: -9999px;
     width: 76px; font-size: 16px; font-family: inherit; padding: 8px; text-align: center;
     border: 1px solid var(--border); border-radius: 9px; background: white; color: var(--text);
   }
+  .cell #fretInput {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; border-radius: 0; padding: 0; background: transparent;
+    font-weight: bold; font-size: 15px; z-index: 2;
+  }
+  .cell #fretInput:focus { outline: none; background: rgba(74,125,252,0.15); }
 
   button, .cell { touch-action: manipulation; -webkit-touch-callout: none; }
   input, button { -webkit-tap-highlight-color: transparent; }
 
   @media (pointer: coarse) {
     .cell { width: 36px; height: 34px; min-width: 36px; font-size: 13px; }
-    button { padding: 11px 14px; font-size: 14px; min-height: 44px; }
-    button.icon-only { padding: 11px; min-width: 44px; justify-content: center; }
-    .toolbar { gap: 12px; padding: 12px; }
-    .toolbar-group { gap: 8px; }
-    input[type="number"] { width: 60px; padding: 9px 4px; min-height: 40px; }
-    #fretInput { min-height: 44px; width: 88px; }
-    .icon { width: 18px; height: 18px; }
+    button { padding: 8px 10px; font-size: 12px; min-height: 40px; }
+    button.icon-only { padding: 8px; min-width: 40px; justify-content: center; }
+    .toolbar { gap: 8px; padding: 10px; }
+    .toolbar-group { gap: 6px; }
+    input[type="number"] { width: 56px; padding: 7px 4px; min-height: 36px; }
+    .icon { width: 15px; height: 15px; }
     .cell .fret-label { font-size: 17px; }
+    .cell #fretInput { font-size: 17px; }
   }
 
   #tabWrap { overflow-x: auto; overflow-y: visible; background: white; border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 18px 6px; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
@@ -187,19 +190,20 @@
     <button id="clearDrawingBtn" class="icon-only danger-hover" title="그림 전체 지우기"><svg class="icon"><use href="#i-trash"/></svg></button>
   </div>
 
+  <div class="toolbar-divider"></div>
+
+  <div class="toolbar-group">
+    <button id="muteBtn"><svg class="icon"><use href="#i-mute"/></svg>뮤트</button>
+    <button id="clearBtn" class="danger-hover"><svg class="icon"><use href="#i-clear"/></svg>지우기</button>
+  </div>
+
   <div class="toolbar-spacer"></div>
   <span id="status"></span>
   <input type="file" id="fileInput" accept=".json,application/json" style="display:none" />
 </div>
 
-<div id="fretBar">
-  <span>선택한 칸의 프렛</span>
-  <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="fretInput" placeholder="0~24" />
-  <button id="muteBtn"><svg class="icon"><use href="#i-mute"/></svg>뮤트</button>
-  <button id="clearBtn" class="danger-hover"><svg class="icon"><use href="#i-clear"/></svg>지우기</button>
-</div>
 <div id="help">
-  칸을 탭(클릭)해 선택한 뒤 위 입력창에 프렛 번호(0~24)를 입력하세요. 데스크톱에서는 방향키로 칸 이동도 가능합니다.
+  칸을 탭(클릭)해 선택하면 그 칸에 바로 프렛 번호(0~24)를 입력할 수 있습니다. 데스크톱에서는 방향키로 칸 이동도 가능합니다.
 </div>
 
 <div id="tabWrap">
@@ -208,6 +212,7 @@
     <canvas id="penCanvas"></canvas>
   </div>
 </div>
+<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="fretInput" />
 
 <footer>모든 데이터는 브라우저 안에서만 처리되며 서버로 전송되지 않습니다. 저장/열기는 파일 다운로드·업로드로 동작합니다.</footer>
 
@@ -322,6 +327,9 @@
   // ---- 렌더링 (한 줄 = MEASURES_PER_LINE 마디씩 끊어서 여러 줄로 표시) ----
   function renderGrid() {
     const wrap = document.getElementById("gridContent");
+    // fretInput은 선택된 칸 안으로 옮겨 붙이는 공용 엘리먼트라, gridContent를 통째로
+    // 비우기 전에 먼저 꺼내둬야 포커스/값이 날아가지 않는다.
+    document.body.appendChild(document.getElementById("fretInput"));
     wrap.innerHTML = "";
 
     const cpl = colsPerLine();
@@ -351,10 +359,13 @@
           td.className = "cell";
           td.dataset.string = s;
           td.dataset.col = c;
-          if (selected.string === s && selected.col === c) td.classList.add("selected");
-
+          const isSelected = selected.string === s && selected.col === c;
           const val = tab.grid[s][c];
-          if (val !== null && val !== undefined) {
+
+          if (isSelected) {
+            td.classList.add("selected");
+            td.appendChild(document.getElementById("fretInput"));
+          } else if (val !== null && val !== undefined) {
             const label = document.createElement("div");
             label.className = "fret-label";
             label.textContent = val;
@@ -588,6 +599,35 @@
     a.remove();
   }
 
+  // ---- 안드로이드 앱(Capacitor)에서 실행 중인지 ----
+  function isNativeApp() {
+    try {
+      return !!(window.TabakboNative && window.TabakboNative.isNative());
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ---- 파일 저장 ----
+  // 웹(브라우저)에서는 기존처럼 다운로드하고, 안드로이드 앱 안에서는 blob 다운로드가
+  // 동작하지 않으므로 공용 문서 폴더(다른 앱에서도 보이는 저장소)에 바로 파일을 쓴다.
+  async function saveFile(filename, content, mime, isBase64) {
+    if (isNativeApp()) {
+      const { Filesystem, Directory, Encoding } = window.TabakboNative;
+      const writeOptions = { path: filename, data: content, directory: Directory.Documents };
+      if (!isBase64) writeOptions.encoding = Encoding.UTF8;
+      await Filesystem.writeFile(writeOptions);
+      setStatus(filename + " 문서 폴더에 저장됨", "ok");
+    } else {
+      if (isBase64) {
+        downloadDataUrl("data:" + mime + ";base64," + content, filename);
+      } else {
+        downloadBlob(content, filename, mime);
+      }
+      setStatus(filename + " 다운로드됨", "ok");
+    }
+  }
+
   // ---- 저장 파일 이름 ----
   let lastBaseName = "tab";
 
@@ -610,13 +650,16 @@
     if (confirm("현재 작업 중인 탭을 지우고 새로 시작할까요?")) resetTab();
   });
 
-  document.getElementById("saveBtn").addEventListener("click", () => {
+  document.getElementById("saveBtn").addEventListener("click", async () => {
     const filename = promptFilename("json");
     if (!filename) return;
     tab.bpm = parseInt(document.getElementById("bpmInput").value, 10) || 90;
     tab.drawing = strokes;
-    downloadBlob(JSON.stringify(tab), filename, "application/json");
-    setStatus(filename + " 다운로드됨", "ok");
+    try {
+      await saveFile(filename, JSON.stringify(tab), "application/json", false);
+    } catch (err) {
+      setStatus("저장 실패: " + err, "error");
+    }
   });
 
   document.getElementById("openBtn").addEventListener("click", () => {
@@ -646,11 +689,14 @@
     e.target.value = "";
   });
 
-  document.getElementById("exportBtn").addEventListener("click", () => {
+  document.getElementById("exportBtn").addEventListener("click", async () => {
     const filename = promptFilename("txt");
     if (!filename) return;
-    downloadBlob(buildAsciiTab(), filename, "text/plain");
-    setStatus(filename + " 다운로드됨", "ok");
+    try {
+      await saveFile(filename, buildAsciiTab(), "text/plain", false);
+    } catch (err) {
+      setStatus("내보내기 실패: " + err, "error");
+    }
   });
 
   function buildAsciiTab() {
@@ -716,8 +762,8 @@
     if (!filename) return;
     try {
       const canvas = await buildExportCanvas();
-      downloadDataUrl(canvas.toDataURL("image/png"), filename);
-      setStatus(filename + " 다운로드됨", "ok");
+      const dataUrl = canvas.toDataURL("image/png");
+      await saveFile(filename, dataUrl.split(",")[1], "image/png", true);
     } catch (err) {
       setStatus("이미지 생성 실패: " + err, "error");
     }

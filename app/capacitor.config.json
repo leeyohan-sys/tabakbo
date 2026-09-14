@@ -1,0 +1,11 @@
+{
+  "appId": "com.tabakbo.app",
+  "appName": "TABAKBO",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
