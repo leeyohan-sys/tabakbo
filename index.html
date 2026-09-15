@@ -99,6 +99,19 @@
     .cell #fretInput { font-size: 17px; }
   }
 
+  @media (orientation: portrait) and (max-width: 700px) {
+    .toolbar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .toolbar > h1 { grid-column: 1 / -1; }
+    .toolbar-group { display: contents; }
+    .toolbar-divider, .toolbar-spacer { display: none; }
+    .toolbar button {
+      width: 100%; flex-direction: column; gap: 3px;
+      padding: 6px 2px; font-size: 10.5px; white-space: normal; text-align: center;
+    }
+    .toolbar button .icon { width: 16px; height: 16px; }
+    #status { grid-column: 1 / -1; }
+  }
+
   #tabWrap { overflow-x: auto; overflow-y: visible; background: white; border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 18px 6px; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
   #tabInner { position: relative; display: inline-block; }
   #penCanvas { position: absolute; top: 0; left: 0; pointer-events: none; touch-action: none; }
@@ -303,7 +316,11 @@
     let v = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
     if (v !== "" && parseInt(v, 10) > 24) v = "24";
     e.target.value = v;
-    setFret(selected.string, selected.col, v === "" ? null : parseInt(v, 10));
+    // 타이핑 도중에는 renderGrid()를 호출하지 않는다: 선택된 칸은 이 입력창이
+    // 그대로 값을 보여주므로 재렌더링이 필요 없고, 매 글자마다 그리드를 다시
+    // 그리며 입력창을 DOM에서 뗐다 붙이면 모바일 키보드가 깜빡여 두 번째
+    // 숫자 입력이 씹히는 문제가 있었다.
+    tab.grid[selected.string][selected.col] = v === "" ? null : parseInt(v, 10);
   });
 
   document.getElementById("muteBtn").addEventListener("click", () => {
