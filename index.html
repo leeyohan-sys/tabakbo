@@ -109,7 +109,10 @@
   }
   .cell #fretInput:focus { outline: none; background: rgba(74,125,252,0.15); }
 
-  button, .cell { touch-action: manipulation; -webkit-touch-callout: none; }
+  button, .cell {
+    touch-action: manipulation; -webkit-touch-callout: none;
+    user-select: none; -webkit-user-select: none;
+  }
   input, button { -webkit-tap-highlight-color: transparent; }
 
   @media (pointer: coarse) {
@@ -209,8 +212,8 @@
   <div class="toolbar-divider"></div>
 
   <div class="toolbar-group">
-    <button id="addMeasureBtn"><svg class="icon"><use href="#i-plus-square"/></svg>Add Measure</button>
-    <button id="removeMeasureBtn"><svg class="icon"><use href="#i-minus-square"/></svg>Remove Measure</button>
+    <button id="addMeasureBtn"><svg class="icon"><use href="#i-plus-square"/></svg>Measure</button>
+    <button id="removeMeasureBtn"><svg class="icon"><use href="#i-minus-square"/></svg>Measure</button>
   </div>
 
   <div class="toolbar-divider"></div>
@@ -809,8 +812,8 @@
   // ---- 이미지로 내보내기 ----
   // 좌표를 다시 계산해서 그리는 대신, 화면에 보이는 그리드+펜 그림을 그대로 캡처해서
   // 내보낸다. 이러면 작업 화면과 이미지가 항상 100% 똑같다.
-  const EXPORT_TARGET_WIDTH = 1200; // 내보낼 이미지 기준 폭(px). 화면 그대로를 이 폭으로 확대/축소한다.
-  const EXPORT_MARGIN = 50; // 여백(좌우 합산 100px)까지 더하면 최종 이미지 가로는 1300px.
+  const EXPORT_TARGET_WIDTH = 1000; // 내보낼 이미지 기준 폭(px). 화면 그대로를 이 폭으로 확대/축소한다.
+  const EXPORT_MARGIN = 50; // 여백(좌우 합산 100px)까지 더하면 최종 이미지 가로는 1100px.
 
   async function buildExportCanvas() {
     const target = document.getElementById("tabInner");
@@ -895,6 +898,18 @@
     setPlayButtonState();
   }
 
+  // 마지막으로 음표(뮤트 포함)가 찍힌 칸의 다음 칸까지만 재생 범위로 삼는다.
+  // 그래야 뒤쪽 빈 마디까지 무음으로 끝까지 도는 일이 없다.
+  function lastFilledCol() {
+    let last = -1;
+    for (let s = 0; s < 6; s++) {
+      for (let c = 0; c < tab.grid[s].length; c++) {
+        if (tab.grid[s][c] !== null && tab.grid[s][c] !== undefined) last = Math.max(last, c);
+      }
+    }
+    return last;
+  }
+
   function playTab() {
     if (isPlaying) { stopPlayback(); return; }
 
@@ -905,7 +920,7 @@
 
     const bpm = parseInt(document.getElementById("bpmInput").value, 10) || 90;
     const slotSec = (60 / bpm) * (4 / SLOTS_PER_MEASURE); // 16분음표 하나의 길이
-    const cols = totalCols();
+    const cols = lastFilledCol() + 1;
     const startAt = audioCtx.currentTime + 0.15;
 
     for (let c = 0; c < cols; c++) {
