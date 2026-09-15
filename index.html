@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TABAKBO 기타 탭 악보 편집기</title>
+<title>TABAKBO Guitar Tab Editor</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
 <link rel="stylesheet" as="style" crossorigin
   href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
@@ -50,11 +50,36 @@
   button:active { transform: translateY(1px); }
   button:disabled { cursor: default; opacity: 0.5; }
   button.icon-only { padding: 6px; }
-  button.active, #penBtn.active {
-    background: var(--primary); border-color: var(--primary); color: var(--primary-text);
-  }
-  button.active:hover, #penBtn.active:hover { background: #3651d4; }
   button.danger-hover:hover { background: #fdeceb; border-color: #f6c6c4; color: var(--danger); }
+  .pen-color-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.25); flex: none; background: #111111; }
+
+  /* ---- 툴바 버튼 색상: 기능 그룹별로 은은한 색을 입혀 흰 버튼 나열을 피한다 ---- */
+  #newBtn, #openBtn, #saveBtn { background: #eef1ff; border-color: transparent; color: #4338ca; }
+  #newBtn:hover, #openBtn:hover, #saveBtn:hover { background: #e0e4ff; border-color: transparent; }
+
+  #exportBtn, #exportImageBtn { background: #e6fbfa; border-color: transparent; color: #0f766e; }
+  #exportBtn:hover, #exportImageBtn:hover { background: #d3f7f4; border-color: transparent; }
+
+  #addMeasureBtn { background: #eafaf0; border-color: transparent; color: #15803d; }
+  #addMeasureBtn:hover { background: #d9f5e3; border-color: transparent; }
+  #removeMeasureBtn { background: #fff1f2; border-color: transparent; color: #be123c; }
+  #removeMeasureBtn:hover { background: #ffe1e3; border-color: transparent; }
+
+  #penBtn, #undoDrawingBtn, #clearDrawingBtn { background: #fdf2f8; border-color: transparent; color: #be185d; }
+  #penBtn:hover, #undoDrawingBtn:hover, #clearDrawingBtn:hover { background: #fbe3ef; border-color: transparent; }
+  #penBtn.active {
+    background: #db2777; border-color: #db2777; color: #ffffff;
+  }
+  #penBtn.active:hover { background: #be185d; }
+
+  #muteBtn { background: #fff6e6; border-color: transparent; color: #b45309; }
+  #muteBtn:hover { background: #ffedc7; border-color: transparent; }
+  #clearBtn { background: #fef1f2; border-color: transparent; color: #be123c; }
+
+  #playBtn { background: #16a34a; border-color: #16a34a; color: #ffffff; font-weight: 600; }
+  #playBtn:hover { background: #128a3e; border-color: #128a3e; }
+  #playBtn.playing { background: #dc2626; border-color: #dc2626; }
+  #playBtn.playing:hover { background: #c31f1f; border-color: #c31f1f; }
 
   .icon { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
@@ -143,8 +168,7 @@
   .cell.selected { outline: 2px solid #4a7dfc; outline-offset: -2px; z-index: 3; }
   .cell.dragging-source { opacity: 0.35; }
   .cell.drag-target { outline: 2px dashed var(--primary); outline-offset: -2px; background-color: rgba(67,97,238,0.1); z-index: 3; }
-  footer { margin-top: 14px; font-size: 12px; color: #999; }
-  footer a { color: #777; }
+  .cell.playing { background-color: rgba(255,140,0,0.28); }
 </style>
 </head>
 <body>
@@ -158,6 +182,7 @@
   <symbol id="i-plus-square" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></symbol>
   <symbol id="i-minus-square" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></symbol>
   <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></symbol>
@@ -169,45 +194,46 @@
   <h1>🎸 TABAKBO</h1>
 
   <div class="toolbar-group">
-    <button id="newBtn"><svg class="icon"><use href="#i-new"/></svg>새로 만들기</button>
-    <button id="openBtn"><svg class="icon"><use href="#i-open"/></svg>열기</button>
-    <button id="saveBtn"><svg class="icon"><use href="#i-save"/></svg>저장</button>
+    <button id="newBtn"><svg class="icon"><use href="#i-new"/></svg>New</button>
+    <button id="openBtn"><svg class="icon"><use href="#i-open"/></svg>Open</button>
+    <button id="saveBtn"><svg class="icon"><use href="#i-save"/></svg>Save</button>
   </div>
 
   <div class="toolbar-divider"></div>
 
   <div class="toolbar-group">
-    <button id="exportBtn"><svg class="icon"><use href="#i-text"/></svg>텍스트</button>
-    <button id="exportImageBtn"><svg class="icon"><use href="#i-image"/></svg>이미지</button>
+    <button id="exportBtn"><svg class="icon"><use href="#i-text"/></svg>Text</button>
+    <button id="exportImageBtn"><svg class="icon"><use href="#i-image"/></svg>Image</button>
   </div>
 
   <div class="toolbar-divider"></div>
 
   <div class="toolbar-group">
-    <button id="addMeasureBtn"><svg class="icon"><use href="#i-plus-square"/></svg>마디 추가</button>
-    <button id="removeMeasureBtn"><svg class="icon"><use href="#i-minus-square"/></svg>마디 삭제</button>
+    <button id="addMeasureBtn"><svg class="icon"><use href="#i-plus-square"/></svg>Add Measure</button>
+    <button id="removeMeasureBtn"><svg class="icon"><use href="#i-minus-square"/></svg>Remove Measure</button>
   </div>
 
   <div class="toolbar-divider"></div>
 
   <div class="toolbar-group">
     <label class="bpm-field">BPM <input type="number" id="bpmInput" value="90" min="20" max="300" /></label>
-    <button id="playBtn"><svg class="icon"><use href="#i-play"/></svg>재생</button>
+    <button id="playBtn"><svg class="icon"><use id="playBtnIcon" href="#i-play"/></svg><span id="playBtnLabel">Play</span></button>
   </div>
 
   <div class="toolbar-divider"></div>
 
   <div class="toolbar-group">
-    <button id="penBtn"><svg class="icon"><use href="#i-pen"/></svg>펜</button>
-    <button id="undoDrawingBtn" class="icon-only" title="되돌리기"><svg class="icon"><use href="#i-undo"/></svg></button>
-    <button id="clearDrawingBtn" class="icon-only danger-hover" title="그림 전체 지우기"><svg class="icon"><use href="#i-trash"/></svg></button>
+    <button id="penBtn"><svg class="icon"><use href="#i-pen"/></svg>Pen<span id="penColorDot" class="pen-color-dot"></span></button>
+    <input type="color" id="penColorInput" value="#111111" style="display:none" />
+    <button id="undoDrawingBtn" class="icon-only" title="Undo"><svg class="icon"><use href="#i-undo"/></svg></button>
+    <button id="clearDrawingBtn" class="icon-only danger-hover" title="Clear Drawing"><svg class="icon"><use href="#i-trash"/></svg></button>
   </div>
 
   <div class="toolbar-divider"></div>
 
   <div class="toolbar-group">
-    <button id="muteBtn"><svg class="icon"><use href="#i-mute"/></svg>뮤트</button>
-    <button id="clearBtn" class="danger-hover"><svg class="icon"><use href="#i-clear"/></svg>지우기</button>
+    <button id="muteBtn"><svg class="icon"><use href="#i-mute"/></svg>Mute</button>
+    <button id="clearBtn" class="danger-hover"><svg class="icon"><use href="#i-clear"/></svg>Clear</button>
   </div>
 
   <div class="toolbar-spacer"></div>
@@ -216,7 +242,7 @@
 </div>
 
 <div id="help">
-  칸을 탭(클릭)해 선택하면 그 칸에 바로 프렛 번호(0~24)를 입력할 수 있습니다. 데스크톱에서는 방향키로 칸 이동도 가능합니다.
+  Tap a cell to select it, then type a fret number (0-24) directly.
 </div>
 
 <div id="tabWrap">
@@ -227,7 +253,6 @@
 </div>
 <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="fretInput" />
 
-<footer>모든 데이터는 브라우저 안에서만 처리되며 서버로 전송되지 않습니다. 저장/열기는 파일 다운로드·업로드로 동작합니다.</footer>
 
 <script>
   // ---- 데이터 모델 ----
@@ -445,6 +470,10 @@
 
     applyResponsiveCellWidth();
     resizePenCanvas();
+
+    if (playheadCol >= 0) {
+      document.querySelectorAll(`#gridContent .cell[data-col="${playheadCol}"]`).forEach((td) => td.classList.add("playing"));
+    }
   }
 
   // ---- 셀 너비를 창 폭에 맞춰 축소 (데스크톱에서 가로 스크롤 방지, 터치 화면은 원래 크기 유지) ----
@@ -485,6 +514,14 @@
   let strokes = [];
   let currentStroke = null;
   let isDrawing = false;
+  let currentPenColor = "#111111";
+
+  // 저장 파일 호환성: 예전 버전은 stroke를 점 배열로 그대로 저장했다(색상 없음).
+  // 새 버전은 { color, points }로 저장하므로, 옛 파일을 열 때 배열이면 기본색으로 감싼다.
+  function normalizeStroke(stroke) {
+    if (Array.isArray(stroke)) return { color: "#111111", points: stroke };
+    return { color: stroke.color || "#111111", points: stroke.points || [] };
+  }
 
   function getPenCanvas() {
     return document.getElementById("penCanvas");
@@ -494,17 +531,18 @@
     const canvas = getPenCanvas();
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#111111";
     ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     strokes.forEach((stroke) => {
-      if (stroke.length < 2) return;
+      const points = stroke.points;
+      if (points.length < 2) return;
+      ctx.strokeStyle = stroke.color || "#111111";
       ctx.beginPath();
-      const p0 = stroke[0];
+      const p0 = points[0];
       ctx.moveTo(p0.xFrac * canvas.width, p0.y);
-      for (let i = 1; i < stroke.length; i++) {
-        const p = stroke[i];
+      for (let i = 1; i < points.length; i++) {
+        const p = points[i];
         ctx.lineTo(p.xFrac * canvas.width, p.y);
       }
       ctx.stroke();
@@ -538,7 +576,33 @@
     document.getElementById("penBtn").classList.toggle("active", penMode);
   }
 
-  document.getElementById("penBtn").addEventListener("click", () => setPenMode(!penMode));
+  const penBtn = document.getElementById("penBtn");
+  const penColorInput = document.getElementById("penColorInput");
+  const penColorDot = document.getElementById("penColorDot");
+  let penLongPressTimer = null;
+  let penLongPressTriggered = false;
+
+  function setPenColor(color) {
+    currentPenColor = color;
+    penColorInput.value = color;
+    penColorDot.style.background = color;
+  }
+
+  penBtn.addEventListener("pointerdown", () => {
+    penLongPressTriggered = false;
+    penLongPressTimer = setTimeout(() => {
+      penLongPressTriggered = true;
+      penColorInput.click();
+    }, 500);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach((evt) => {
+    penBtn.addEventListener(evt, () => clearTimeout(penLongPressTimer));
+  });
+  penBtn.addEventListener("click", () => {
+    if (penLongPressTriggered) { penLongPressTriggered = false; return; }
+    setPenMode(!penMode);
+  });
+  penColorInput.addEventListener("input", (e) => setPenColor(e.target.value));
 
   document.getElementById("undoDrawingBtn").addEventListener("click", () => {
     strokes.pop();
@@ -554,13 +618,13 @@
   penCanvasEl.addEventListener("pointerdown", (e) => {
     if (!penMode) return;
     isDrawing = true;
-    currentStroke = [pointFromEvent(e)];
+    currentStroke = { color: currentPenColor, points: [pointFromEvent(e)] };
     strokes.push(currentStroke);
     penCanvasEl.setPointerCapture(e.pointerId);
   });
   penCanvasEl.addEventListener("pointermove", (e) => {
     if (!penMode || !isDrawing) return;
-    currentStroke.push(pointFromEvent(e));
+    currentStroke.points.push(pointFromEvent(e));
     redrawPenStrokes();
   });
   penCanvasEl.addEventListener("pointerup", () => { isDrawing = false; currentStroke = null; });
@@ -634,14 +698,14 @@
       const writeOptions = { path: filename, data: content, directory: Directory.Documents };
       if (!isBase64) writeOptions.encoding = Encoding.UTF8;
       await Filesystem.writeFile(writeOptions);
-      setStatus(filename + " 문서 폴더에 저장됨", "ok");
+      setStatus(filename + " saved to Documents", "ok");
     } else {
       if (isBase64) {
         downloadDataUrl("data:" + mime + ";base64," + content, filename);
       } else {
         downloadBlob(content, filename, mime);
       }
-      setStatus(filename + " 다운로드됨", "ok");
+      setStatus(filename + " downloaded", "ok");
     }
   }
 
@@ -655,7 +719,7 @@
   // 확장자를 뺀 파일 이름을 물어보고, 다음 저장에도 같은 이름이 기본값으로 뜨도록 기억한다.
   // 취소를 누르면 null을 반환한다.
   function promptFilename(ext) {
-    const input = window.prompt("파일 이름을 입력하세요", lastBaseName);
+    const input = window.prompt("Enter a file name", lastBaseName);
     if (input === null) return null;
     const base = sanitizeFilename(input) || "tab";
     lastBaseName = base;
@@ -664,7 +728,7 @@
 
   // ---- 새로 만들기 / 저장 / 열기 / 내보내기 ----
   document.getElementById("newBtn").addEventListener("click", () => {
-    if (confirm("현재 작업 중인 탭을 지우고 새로 시작할까요?")) resetTab();
+    if (confirm("Clear the current tab and start a new one?")) resetTab();
   });
 
   document.getElementById("saveBtn").addEventListener("click", async () => {
@@ -675,7 +739,7 @@
     try {
       await saveFile(filename, JSON.stringify(tab), "application/json", false);
     } catch (err) {
-      setStatus("저장 실패: " + err, "error");
+      setStatus("Save failed: " + err, "error");
     }
   });
 
@@ -691,15 +755,15 @@
       try {
         tab = JSON.parse(reader.result);
         selected = { string: 0, col: 0 };
-        strokes = tab.drawing || [];
+        strokes = (tab.drawing || []).map(normalizeStroke);
         document.getElementById("bpmInput").value = tab.bpm || 90;
         renderGrid();
         redrawPenStrokes();
         syncFretInput();
         lastBaseName = sanitizeFilename(file.name.replace(/\.json$/i, "")) || lastBaseName;
-        setStatus(file.name + " 불러옴", "ok");
+        setStatus(file.name + " loaded", "ok");
       } catch (err) {
-        setStatus("파일을 읽을 수 없습니다: " + err, "error");
+        setStatus("Could not read file: " + err, "error");
       }
     };
     reader.readAsText(file);
@@ -712,7 +776,7 @@
     try {
       await saveFile(filename, buildAsciiTab(), "text/plain", false);
     } catch (err) {
-      setStatus("내보내기 실패: " + err, "error");
+      setStatus("Export failed: " + err, "error");
     }
   });
 
@@ -745,8 +809,8 @@
   // ---- 이미지로 내보내기 ----
   // 좌표를 다시 계산해서 그리는 대신, 화면에 보이는 그리드+펜 그림을 그대로 캡처해서
   // 내보낸다. 이러면 작업 화면과 이미지가 항상 100% 똑같다.
-  const EXPORT_TARGET_WIDTH = 1600; // 내보낼 이미지 기준 폭(px). 화면 그대로를 이 폭으로 확대/축소한다.
-  const EXPORT_MARGIN = 50;
+  const EXPORT_TARGET_WIDTH = 1200; // 내보낼 이미지 기준 폭(px). 화면 그대로를 이 폭으로 확대/축소한다.
+  const EXPORT_MARGIN = 50; // 여백(좌우 합산 100px)까지 더하면 최종 이미지 가로는 1300px.
 
   async function buildExportCanvas() {
     const target = document.getElementById("tabInner");
@@ -782,7 +846,7 @@
       const dataUrl = canvas.toDataURL("image/png");
       await saveFile(filename, dataUrl.split(",")[1], "image/png", true);
     } catch (err) {
-      setStatus("이미지 생성 실패: " + err, "error");
+      setStatus("Image export failed: " + err, "error");
     }
   });
 
@@ -792,13 +856,32 @@
   let stopRequested = false;
   let scheduledOscillators = [];
   let playbackTimer = null;
+  let playheadRAF = null;
+  let playheadCol = -1;
 
   function midiToFreq(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
   }
 
   function setPlayButtonState() {
-    document.getElementById("playBtn").textContent = isPlaying ? "정지" : "재생";
+    document.getElementById("playBtnIcon").setAttribute("href", isPlaying ? "#i-stop" : "#i-play");
+    document.getElementById("playBtnLabel").textContent = isPlaying ? "Stop" : "Play";
+    document.getElementById("playBtn").classList.toggle("playing", isPlaying);
+  }
+
+  function clearPlayhead() {
+    document.querySelectorAll("#gridContent .cell.playing").forEach((td) => td.classList.remove("playing"));
+    playheadCol = -1;
+  }
+
+  function highlightPlayheadCol(col) {
+    if (col === playheadCol) return;
+    clearPlayhead();
+    if (col < 0) return;
+    const cells = document.querySelectorAll(`#gridContent .cell[data-col="${col}"]`);
+    cells.forEach((td) => td.classList.add("playing"));
+    playheadCol = col;
+    if (cells[0]) cells[0].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
   }
 
   function stopPlayback() {
@@ -806,6 +889,8 @@
     scheduledOscillators.forEach((osc) => { try { osc.stop(); } catch (e) {} });
     scheduledOscillators = [];
     if (playbackTimer) { clearTimeout(playbackTimer); playbackTimer = null; }
+    if (playheadRAF) { cancelAnimationFrame(playheadRAF); playheadRAF = null; }
+    clearPlayhead();
     isPlaying = false;
     setPlayButtonState();
   }
@@ -851,7 +936,18 @@
     playbackTimer = setTimeout(() => {
       if (!stopRequested) { isPlaying = false; setPlayButtonState(); }
       scheduledOscillators = [];
+      if (playheadRAF) { cancelAnimationFrame(playheadRAF); playheadRAF = null; }
+      clearPlayhead();
     }, totalMs);
+
+    function tickPlayhead() {
+      if (!isPlaying) return;
+      const elapsed = audioCtx.currentTime - startAt;
+      const col = Math.floor(elapsed / slotSec);
+      highlightPlayheadCol(col < 0 ? -1 : Math.min(col, cols - 1));
+      playheadRAF = requestAnimationFrame(tickPlayhead);
+    }
+    playheadRAF = requestAnimationFrame(tickPlayhead);
   }
 
   document.getElementById("playBtn").addEventListener("click", playTab);
