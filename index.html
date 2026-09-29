@@ -52,28 +52,33 @@
   button.icon-only { padding: 6px; }
   button.danger-hover:hover { background: #fdeceb; border-color: #f6c6c4; color: var(--danger); }
 
-  /* ---- 툴바 버튼 색상: 기능 그룹별로 은은한 색을 입혀 흰 버튼 나열을 피한다 ---- */
-  #newBtn, #openBtn, #saveBtn { background: #eef1ff; border-color: transparent; color: #4338ca; }
-  #newBtn:hover, #openBtn:hover, #saveBtn:hover { background: #e0e4ff; border-color: transparent; }
+  /* ---- 툴바 버튼 색상: 진한 단색 배경 + 흰색 아이콘/글자로 항상 또렷하게 보이게 한다 ---- */
+  #newBtn, #openBtn, #saveBtn { background: #4f46e5; border-color: transparent; color: #fff; }
+  #newBtn:hover, #openBtn:hover, #saveBtn:hover { background: #4338ca; border-color: transparent; }
 
-  #exportBtn, #exportImageBtn { background: #e6fbfa; border-color: transparent; color: #0f766e; }
-  #exportBtn:hover, #exportImageBtn:hover { background: #d3f7f4; border-color: transparent; }
+  #exportBtn, #exportImageBtn { background: #0d9488; border-color: transparent; color: #fff; }
+  #exportBtn:hover, #exportImageBtn:hover { background: #0f766e; border-color: transparent; }
 
-  #addMeasureBtn { background: #eafaf0; border-color: transparent; color: #15803d; }
-  #addMeasureBtn:hover { background: #d9f5e3; border-color: transparent; }
-  #removeMeasureBtn { background: #fff1f2; border-color: transparent; color: #be123c; }
-  #removeMeasureBtn:hover { background: #ffe1e3; border-color: transparent; }
+  #addMeasureBtn { background: #16a34a; border-color: transparent; color: #fff; }
+  #addMeasureBtn:hover { background: #15803d; border-color: transparent; }
+  #removeMeasureBtn { background: #e11d48; border-color: transparent; color: #fff; }
+  #removeMeasureBtn:hover { background: #be123c; border-color: transparent; }
 
-  #undoDrawingBtn, #clearDrawingBtn { background: #fdf2f8; border-color: transparent; color: #be185d; }
-  #undoDrawingBtn:hover, #clearDrawingBtn:hover { background: #fbe3ef; border-color: transparent; }
+  #undoDrawingBtn, #clearDrawingBtn { background: #db2777; border-color: transparent; color: #fff; }
+  #undoDrawingBtn:hover, #clearDrawingBtn:hover { background: #be185d; border-color: transparent; }
 
-  /* Pen 버튼 배경/글자색은 선택된 펜 색상에 맞춰 JS에서 직접 지정한다(setPenColor). */
-  #penBtn { border-color: transparent; }
-  #penBtn.active { box-shadow: inset 0 0 0 2px rgba(0,0,0,0.35); }
+  /* Pen 버튼 배경은 선택된 펜 색상에 맞춰 JS에서 직접 지정한다(setPenColor).
+     아이콘/글자는 항상 흰색으로 고정하고, 얇은 어두운 테두리로 밝은 펜 색상에서도 버튼 경계가 보이게 한다.
+     선택(그리기 모드 on) 상태는 펜 색상과 무관하게 항상 보이도록 흰색 링 + 진한 링을 이중으로 두른다. */
+  #penBtn { border-color: transparent; color: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18); }
+  #penBtn.active {
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 0 0 2px #fff, 0 0 0 4px #1c1f26;
+  }
 
-  #muteBtn { background: #fff6e6; border-color: transparent; color: #b45309; }
-  #muteBtn:hover { background: #ffedc7; border-color: transparent; }
-  #clearBtn { background: #fef1f2; border-color: transparent; color: #be123c; }
+  #muteBtn { background: #d97706; border-color: transparent; color: #fff; }
+  #muteBtn:hover { background: #b45309; border-color: transparent; }
+  #clearBtn { background: #e11d48; border-color: transparent; color: #fff; }
+  #clearBtn:hover { background: #be123c; border-color: transparent; }
 
   #playBtn { background: #16a34a; border-color: #16a34a; color: #ffffff; font-weight: 600; }
   #playBtn:hover { background: #128a3e; border-color: #128a3e; }
@@ -139,9 +144,10 @@
     #status { grid-column: 1 / -1; }
   }
 
-  #tabWrap { overflow-x: auto; overflow-y: visible; background: white; border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 18px 6px; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
+  #tabWrap { position: relative; overflow-x: auto; overflow-y: visible; background: white; border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 18px 6px; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
   #tabInner { position: relative; display: inline-block; }
-  #penCanvas { position: absolute; top: 0; left: 0; pointer-events: none; touch-action: none; }
+  /* z-index는 .fret-label(2)·.cell.selected(3)보다 높아야 숫자 칸 위에서도 그려지고 선이 가려지지 않는다. */
+  #penCanvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; touch-action: none; }
   .tab-line-row { display: flex; align-items: stretch; margin-bottom: 26px; }
   table.tab-line { border-collapse: collapse; font-family: Consolas, monospace; }
   table.tab-line td { text-align: center; padding: 0; }
@@ -226,7 +232,7 @@
 
   <div class="toolbar-group">
     <button id="penBtn"><svg class="icon"><use href="#i-pen"/></svg>Pen</button>
-    <input type="color" id="penColorInput" value="#111111" style="display:none" />
+    <input type="color" id="penColorInput" value="#000000" style="display:none" />
     <button id="undoDrawingBtn" class="icon-only" title="Undo"><svg class="icon"><use href="#i-undo"/></svg></button>
     <button id="clearDrawingBtn" class="icon-only danger-hover" title="Clear Drawing"><svg class="icon"><use href="#i-trash"/></svg></button>
   </div>
@@ -250,8 +256,8 @@
 <div id="tabWrap">
   <div id="tabInner">
     <div id="gridContent"></div>
-    <canvas id="penCanvas"></canvas>
   </div>
+  <canvas id="penCanvas"></canvas>
 </div>
 <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="fretInput" />
 
@@ -516,7 +522,7 @@
   let strokes = [];
   let currentStroke = null;
   let isDrawing = false;
-  let currentPenColor = "#111111";
+  let currentPenColor = "#000000";
 
   // 저장 파일 호환성: 예전 버전은 stroke를 점 배열로 그대로 저장했다(색상 없음).
   // 새 버전은 { color, points }로 저장하므로, 옛 파일을 열 때 배열이면 기본색으로 감싼다.
@@ -529,10 +535,17 @@
     return document.getElementById("penCanvas");
   }
 
-  function redrawPenStrokes() {
-    const canvas = getPenCanvas();
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // 캔버스는 흰 악보 영역(#tabWrap) 전체를 덮지만, 점 좌표는 예전 저장 파일과 호환되도록
+  // 계속 그리드(#gridContent) 기준으로 저장한다. 그래서 여백에 그린 점은 xFrac<0, >1 또는 y<0이 될 수 있다.
+  function gridOrigin() {
+    const canvasRect = getPenCanvas().getBoundingClientRect();
+    const gridContent = document.getElementById("gridContent");
+    const gridRect = gridContent.getBoundingClientRect();
+    return { x: gridRect.left - canvasRect.left, y: gridRect.top - canvasRect.top, w: gridContent.offsetWidth };
+  }
+
+  // origin: 그리드 왼쪽 위가 ctx 좌표계에서 어디인지 + 그리드 폭
+  function drawStrokes(ctx, origin) {
     ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -542,25 +555,38 @@
       ctx.strokeStyle = stroke.color || "#111111";
       ctx.beginPath();
       const p0 = points[0];
-      ctx.moveTo(p0.xFrac * canvas.width, p0.y);
+      ctx.moveTo(origin.x + p0.xFrac * origin.w, origin.y + p0.y);
       for (let i = 1; i < points.length; i++) {
         const p = points[i];
-        ctx.lineTo(p.xFrac * canvas.width, p.y);
+        ctx.lineTo(origin.x + p.xFrac * origin.w, origin.y + p.y);
       }
       ctx.stroke();
     });
   }
 
-  function resizePenCanvas() {
-    const gridContent = document.getElementById("gridContent");
+  function redrawPenStrokes() {
     const canvas = getPenCanvas();
-    const w = gridContent.offsetWidth;
-    const h = gridContent.offsetHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawStrokes(ctx, gridOrigin());
+  }
+
+  function resizePenCanvas() {
+    const wrap = document.getElementById("tabWrap");
+    const inner = document.getElementById("tabInner");
+    const canvas = getPenCanvas();
+    const style = getComputedStyle(wrap);
+    const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    // 캔버스 자신이 scrollWidth를 키우지 않도록 내용물 크기로 계산한다.
+    const w = Math.max(wrap.clientWidth, inner.offsetWidth + padX);
+    const h = inner.offsetHeight + padY;
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
-      redrawPenStrokes();
     }
+    // 크기가 같아도 그리드 폭/위치가 바뀌었을 수 있으니 항상 다시 그린다.
+    redrawPenStrokes();
   }
 
   function pointFromEvent(e) {
@@ -568,7 +594,8 @@
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-    return { xFrac: x / canvas.width, y };
+    const origin = gridOrigin();
+    return { xFrac: (x - origin.x) / origin.w, y: y - origin.y };
   }
 
   function setPenMode(on) {
@@ -583,22 +610,11 @@
   let penLongPressTimer = null;
   let penLongPressTriggered = false;
 
-  // 밝은 펜 색상엔 어두운 글자를, 어두운 펜 색상엔 흰 글자를 써서 항상 읽히게 한다.
-  function contrastTextColor(hex) {
-    const c = hex.replace("#", "");
-    const r = parseInt(c.substring(0, 2), 16);
-    const g = parseInt(c.substring(2, 4), 16);
-    const b = parseInt(c.substring(4, 6), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.6 ? "#111111" : "#ffffff";
-  }
-
   function setPenColor(color) {
     currentPenColor = color;
     penColorInput.value = color;
     penBtn.style.background = color;
     penBtn.style.borderColor = color;
-    penBtn.style.color = contrastTextColor(color);
   }
   setPenColor(currentPenColor);
 
@@ -821,8 +837,7 @@
   }
 
   // ---- 이미지로 내보내기 ----
-  // 좌표를 다시 계산해서 그리는 대신, 화면에 보이는 그리드+펜 그림을 그대로 캡처해서
-  // 내보낸다. 이러면 작업 화면과 이미지가 항상 100% 똑같다.
+  // 화면에 보이는 그리드를 그대로 캡처하고, 그 위에 펜 그림을 같은 배율로 다시 그려서 내보낸다.
   const EXPORT_TARGET_WIDTH = 1000; // 내보낼 이미지 기준 폭(px). 화면 그대로를 이 폭으로 확대/축소한다.
   const EXPORT_MARGIN = 50; // 여백(좌우 합산 100px)까지 더하면 최종 이미지 가로는 1100px.
 
@@ -849,6 +864,15 @@
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(captured, margin, margin);
+
+    // 펜 캔버스는 여백까지 덮느라 tabInner 밖에 있어서 캡처에 안 잡힌다. 그림은 여기서 직접 얹는다.
+    // 그리드가 tabInner의 (0,0)에 있으므로 여백 위치에서 캡처 배율대로 그리면 화면과 같은 자리에 온다.
+    const s = captured.width / target.offsetWidth;
+    ctx.save();
+    ctx.translate(margin, margin);
+    ctx.scale(s, s);
+    drawStrokes(ctx, { x: 0, y: 0, w: document.getElementById("gridContent").offsetWidth });
+    ctx.restore();
     return canvas;
   }
 
